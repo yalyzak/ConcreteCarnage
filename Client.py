@@ -20,7 +20,7 @@ class Client:
     def Update(self, dt):
         bools, dx, dy = self.input()
         self.send_input(bools, dx, dy)
-        ping = self.ping()
+        self.ping()
     def Start(self):
         # c = Client("Player1")
         self.login()
@@ -41,6 +41,8 @@ class Client:
         print(self.tcp.recv(128).decode())
 
     def send_input(self, keys, dx, dy):
+        now = time.perf_counter()
+
         mask = 0
         for i, pressed in enumerate(keys):
             if pressed:
@@ -53,14 +55,13 @@ class Client:
             mask,
             dx,
             dy,
-            0.0
+            now
         )
 
         self.udp.sendto(packet, (SERVER, 5001))
 
     def ping(self):
         now = time.perf_counter()
-
         packet = struct.pack(
             PACK_FORMAT,
             2,
@@ -81,32 +82,33 @@ class Client:
 
             if ptype == 3:
                 ping = (time.perf_counter() - ts) * 1000
-                return ping
                 print(f"Ping: {ping:.3f} ms")
+                return ping
 
         except:
-            return None
             print("Ping timeout")
+            return None
+
 
 # =====================
+if __name__ == "__main__":
+    c = Client("Player1")
+    c.login()
 
-# c = Client("Player1")
-# c.login()
-#
-# mode = input("create/join: ")
-#
-# if mode == "create":
-#     c.create_room("room1")
-# else:
-#     pwd = input("password:")
-#     c.join_room("room1", pwd)
-#
-# while True:
-#     keys = [False] * 32
-#     keys[0] = True    # example key
-#     keys[30] = True   # left click
-#     keys[31] = False  # right click
-#
-#     c.send_input(keys, 5, -3)
-#     c.ping()
+    # mode = input("create/join: ")
+    # if mode == "create":
+    #     c.create_room("room1")
+    # else:
+    #     pwd = input("password:")
+    #     c.join_room("room1", pwd)
+    c.create_room("room1")
+
+    while True:
+        keys = [False] * 32
+        keys[0] = True    # example key
+        keys[30] = True   # left click
+        keys[31] = False  # right click
+
+        c.send_input(keys, 5, -3)
+        c.ping()
 

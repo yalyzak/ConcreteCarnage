@@ -1,10 +1,14 @@
-# server.py
 import socket
 import threading
 import struct
 import random
 import string
 import select
+from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
+from Movement import PlayerController, ServerController
+from MAP import crateMAP
+from debug import debug
+
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
@@ -15,28 +19,37 @@ PACK_FORMAT = "BIIhhd"
 # =====================
 # OBJECTS
 # =====================
-
+def game_object(name):
+    return Object(name=name, position=Vector3(5,1,0)).add_component(
+    [BoxCollider(),
+    Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(-4,0,0)), ServerController(),
+    ])
 class Client:
     def __init__(self, cid, username):
         self.id = cid
         self.username = username
         self.room = None
         self.udp_addr = None
+        self.game_object = game_object(username)
 
 class Room:
     def __init__(self, name, password):
         self.name = name
         self.password = password
         self.clients = []
+        camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
+        self.Camera = camera
 
     def add_client(self, client):
         if client not in self.clients:
             self.clients.append(client)
+            self.Camera.add_child(client.game_object)
             client.room = self
 
     def broadcast(self, data, sender, udp):
         for c in self.clients:
-            if c != sender and c.udp_addr:
+            if c.udp_addr:
+            # if c != sender and c.udp_addr:
                 udp.sendto(data, c.udp_addr)
 
 class RoomManager:
@@ -54,6 +67,11 @@ class RoomManager:
         room = Room(name, pwd)
         room.add_client(owner)  # auto join
         self.rooms[name] = room
+        box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
+            [BoxCollider(), Rigidbody(isKinematic=True)])
+
+        threading.Thread(target=Core.run, args=([room.Camera, box],), kwargs={"Render": True}, daemon=True).start()
+
         return pwd
 
     def join_room(self, name, pwd, client):
@@ -165,26 +183,38 @@ def udp_server():
             ptype, cid, keys, dx, dy, timestamp = struct.unpack(
                 PACK_FORMAT, data
             )
-            keys = [(keys >> i) & 1 == 1 for i in range(4)]
 
             if cid not in clients:
                 continue
 
+
+
             client = clients[cid]
             client.udp_addr = addr
 
-            if ptype == 2:  # ping
+            if not client.room:
+                continue
+            if ptype == 1:
+                client.game_object.ServerController.input_controller(keys, 1 / 60)
+                position = client.game_object.position
+                rotation = client.game_object.quaternion
+
+                data = struct.pack("7f", position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z)
+                # client.room.broadcast(data, client, udp)
+                # client.game_object.ServerController.mouse_controller(dx, dy)
+
+            elif ptype == 2:  # ping
                 pong = struct.pack(
                     PACK_FORMAT,
                     3, cid, 0, 0, 0, timestamp
                 )
                 udp.sendto(pong, addr)
-                continue
-
-            if client.room:
                 client.room.broadcast(data, client, udp)
 
-threading.Thread(target=tcp_server).start()
-threading.Thread(target=udp_server).start()
+                continue
+
+
+threading.Thread(target=tcp_server, daemon=True).start()
+threading.Thread(target=udp_server, daemon=True).start()
 
 print("Server running")

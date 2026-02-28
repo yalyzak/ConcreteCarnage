@@ -1,25 +1,25 @@
-import os
-
-from bereshit import Core,Camera,Object,Vector3,Rigidbody,BoxCollider, MeshRander
-# import Server
-# from Client import Client
+from Client import Client
+import Server
+# PLAYER
+from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, Quaternion
 from Movement import PlayerController
-dir = "C:/Users/yaly/Documents/map/"
-player = Object(position=Vector3(0,1,0)).add_component([BoxCollider(), Rigidbody(Freeze_Rotation=Vector3(1,1,1)), Camera(shading="solid"), PlayerController()])
+from MAP import crateMAP
+from debug import debug
 
-floor = Object(size=Vector3(10,1,10)).add_component([BoxCollider(), Rigidbody(isKinematic=True)])
+world_map = crateMAP()
+# PLAYER
+player = Object(
+    name="player",
+    position=Vector3(5,1,0)
+).add_component([
+    BoxCollider(),
+    Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(-4,0,0)),
+    PlayerController(),
+    Client("Player1"),
 
-arr = []
+])
+camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
+box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
+            [BoxCollider(), Rigidbody(isKinematic=True)])
 
-# loop through all files in the folder
-for file_name in os.listdir(dir):
-    full_path = os.path.join(dir, file_name)
-
-    # make sure it's a file (not a subfolder)
-    if os.path.isfile(full_path):
-        obj = Object().add_component(
-            MeshRander(obj_path=full_path)
-        )
-        arr.append(obj)
-
-Core.run([player,floor] + arr)
+Core.run([player, camera, box])

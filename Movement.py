@@ -6,8 +6,7 @@ from bereshit import Quaternion, Vector3
 CENTER_X = 960
 CENTER_Y = 540
 
-
-class PlayerController:
+class Controller:
     def __init__(self, speed=5, sensitivity=0.1):
         self.force_amount = speed
         self.sensitivity = sensitivity
@@ -28,6 +27,7 @@ class PlayerController:
             'left shift'
         ]
 
+class PlayerController(Controller):
     # -----------------------------------
     # START
     # -----------------------------------
@@ -105,6 +105,7 @@ class PlayerController:
         if keyboard.is_pressed('w'):
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
             forward = Vector3(forward.x, 0, forward.z).normalized()
+
             self.parent.Rigidbody.velocity += forward * self.force_amount * dt
 
         if keyboard.is_pressed('s'):
@@ -135,3 +136,67 @@ class PlayerController:
                 -self.force_amount * 3,
                 0
             ) * dt
+
+class ServerController(Controller):
+    # def Update(self, dt):
+    #     if self.input_queue:
+    #         self.input_controller(self.read_input(), dt)
+    def read_input(self):
+        return self.input_queue.pop()
+    def input_controller(self, keys, dt):
+        keys = [(keys >> i) & 1 == 1 for i in range(32)]
+
+        if keys[0]:
+            forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
+            forward = Vector3(forward.x, 0, forward.z).normalized()
+
+            self.parent.Rigidbody.velocity += forward * self.force_amount * dt
+
+        if keys[1]:
+            backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
+            backward = Vector3(backward.x, 0, backward.z).normalized()
+            self.parent.Rigidbody.velocity += backward * self.force_amount * dt
+
+        if keys[2]:
+            right = self.parent.quaternion.rotate(Vector3(1, 0, 0))
+            right = Vector3(right.x, 0, right.z).normalized()
+            self.parent.Rigidbody.velocity += right * self.force_amount * dt
+
+        if keys[3]:
+            left = self.parent.quaternion.rotate(Vector3(-1, 0, 0))
+            left = Vector3(left.x, 0, left.z).normalized()
+            self.parent.Rigidbody.velocity += left * self.force_amount * dt
+
+        if keys[4]:
+            self.parent.Rigidbody.velocity += Vector3(
+                0,
+                self.force_amount * 3,
+                0
+            ) * dt
+
+        if keys[5]:
+            self.parent.Rigidbody.velocity += Vector3(
+                0,
+                -self.force_amount * 3,
+                0
+            ) * dt
+    def mouse_controller(self, dx, dy):
+
+        sensitivity = 0.001
+
+        # apply rotation
+        self.total_yaw -= dx * sensitivity
+        self.total_pitch += dy * sensitivity
+
+        pitch_q = Quaternion.axis_angle(
+            Vector3(1, 0, 0),
+            self.total_pitch
+        )
+
+        yaw_q = Quaternion.axis_angle(
+            Vector3(0, 1, 0),
+            self.total_yaw
+        )
+
+        self.parent.quaternion = yaw_q * pitch_q
+
