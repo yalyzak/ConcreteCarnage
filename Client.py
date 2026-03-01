@@ -1,4 +1,5 @@
 # client.py
+import random
 import socket
 import struct
 import time
@@ -39,7 +40,7 @@ class Client:
         self.receive_input()
     def Start(self):
         self.login()
-        self.create_room("room1")
+        self.create_room("room1"+ str(random.randint(1, 100 )))
     def login(self):
         self.tcp.connect((self.server_ip, 5000))
         self.tcp.send(self.name.encode())
