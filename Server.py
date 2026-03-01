@@ -21,19 +21,32 @@ STATE_FORMAT = "!B10f"
 # =====================
 # OBJECTS
 # =====================
-def game_object(name):
+class ClientHelper:
+    def __init__(self, client):
+        self._client = client
+    def last_seen(self):
+        return self._client.last_seen
+    def Update(self, dt):
+        if self.last_seen() > 10:
+            self.parent.World.Exit()
+            self._client.room.remove_client(self._client)
+
+def game_object(name, client):
     return Object(name=name, position=Vector3(5,1,0)).add_component(
-    [BoxCollider(),
-    Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)), ServerController(),
-    ])
+     [BoxCollider(),
+     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
+     ServerController(),
+     ClientHelper(client)
+])
 class Client:
     def __init__(self, cid, username):
         self.id = cid
         self.username = username
         self.room = None
         self.udp_addr = None
-        self.game_object = game_object(username)
-        self.last_ping_time = 0
+        self.game_object = game_object(username, self)
+        self.last_seen = 0
+
 
 class Room:
     def __init__(self, name, password):
@@ -49,6 +62,16 @@ class Room:
             self.Camera.add_child(client.game_object)
             client.room = self
 
+    def remove_client(self, client):
+        if client in self.clients:
+            self.clients.remove(client)
+
+            # Remove from camera/scene if it exists there
+            if client.game_object in self.Camera.children:
+                self.Camera.remove_child(client.game_object)
+
+            # Clear the client's room reference
+            client.room = None
     def broadcast(self, data, sender, udp):
         for c in self.clients:
             if c.udp_addr:
@@ -203,17 +226,18 @@ def udp_server():
                 continue
             client.game_object.ServerController.input_controller(keys, 1 / 60)
             client.game_object.ServerController.mouse_controller(dx, dy)
-            if time.perf_counter() - client.last_ping_time > 1:
+            if time.perf_counter() - client.last_seen > 1:
                 position = client.game_object.position
                 rotation = client.game_object.quaternion
                 velocity = client.game_object.Rigidbody.velocity
 
                 data = struct.pack(STATE_FORMAT, 4, position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z, velocity.x, velocity.y, velocity.z)
                 client.room.broadcast(data, addr, udp)
-                client.last_ping_time = time.perf_counter()
+                client.last_seen = time.perf_counter()
 
 
 threading.Thread(target=tcp_server, daemon=False).start()
 threading.Thread(target=udp_server, daemon=False).start()
 
 print("Server running")
+

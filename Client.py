@@ -5,7 +5,6 @@ import time
 import select
 from bereshit import Vector3, Quaternion
 
-SERVER = "127.0.0.1"
 
 CLIENT_PACK_FORMAT = "!BIIhhd"
 PING_FORMAT = "!Bd"
@@ -13,9 +12,11 @@ STATE_FORMAT = "!B10f"
 
 class Client:
 
-    def __init__(self, name):
+    def __init__(self, name, ip = "127.0.0.1"):
         self.name = name
         self.id = None
+
+        self.server_ip = ip
 
         self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -40,7 +41,7 @@ class Client:
         self.login()
         self.create_room("room1")
     def login(self):
-        self.tcp.connect((SERVER, 5000))
+        self.tcp.connect((self.server_ip, 5000))
         self.tcp.send(self.name.encode())
 
         msg = self.tcp.recv(128).decode()
@@ -70,7 +71,7 @@ class Client:
             dt
         )
 
-        self.udp.sendto(packet, (SERVER, 5001))
+        self.udp.sendto(packet, (self.server_ip, 5001))
     def position_correction(self, game_pos, server_pos, game_vel, server_vel):
 
 
@@ -107,7 +108,7 @@ class Client:
             ts = struct.unpack(PING_FORMAT, data)[1]
             self.wait = False
 
-            ping = (time.perf_counter() - ts) * 1000  # RTT/2
+            ping = (time.perf_counter() - ts) * 1000
             print(f"Ping: {ping:.2f} ms")
 
         elif ptype == 4:  # movement update
@@ -121,7 +122,6 @@ class Client:
 
             self.position_correction(game_pos, server_pos, game_vel, server_vel)
         else:
-            return
             print("Unknown packet", ptype)
 
     def receive_input(self):
@@ -143,7 +143,7 @@ class Client:
             now
         )
 
-        self.udp.sendto(packet, (SERVER, 5001))
+        self.udp.sendto(packet, (self.server_ip, 5001))
         self.last_ping_time = now
 
 
