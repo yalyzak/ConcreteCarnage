@@ -28,9 +28,9 @@ class ClientHelper:
         return self._client.last_seen
     def Update(self, dt):
         gg = time.perf_counter() - self.last_seen()
-        if gg > 10 and gg < 1000: # needs fixing
+        if gg > 3 and gg < 1000: # needs fixing
             self.parent.World.Exit()
-            self._client.room.remove_client(self._client)
+            self._client.log_out()
 
 def game_object(name, client):
     return Object(name=name, position=Vector3(5,1,0)).add_component(
@@ -48,12 +48,14 @@ class Client:
         self.game_object = game_object(username, self)
         self.last_seen = 0
 
-
+    def log_out(self):
+        self.room.remove_client(self)
 class Room:
-    def __init__(self, name, password):
+    def __init__(self, name, password, room_manager):
         self.name = name
         self.password = password
         self.clients = []
+        self.room_manager = room_manager
         camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
         self.Camera = camera
 
@@ -67,12 +69,10 @@ class Room:
         if client in self.clients:
             self.clients.remove(client)
 
-            # # Remove from camera/scene if it exists there
-            # if client.game_object in self.Camera.children:
-            #     self.Camera.remove_child(client.game_object)
-
             # Clear the client's room reference
             client.room = None
+        if not self.clients:
+            del self.room_manager.rooms[self.name]
     def broadcast(self, data, sender, udp):
         for c in self.clients:
             if c.udp_addr:
@@ -91,7 +91,7 @@ class RoomManager:
             return None
 
         pwd = self.generate_password()
-        room = Room(name, pwd)
+        room = Room(name, pwd, room_manager)
         room.add_client(owner)  # auto join
         self.rooms[name] = room
         box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
@@ -111,6 +111,17 @@ class RoomManager:
         room.add_client(client)
         return True
 
+    def remove_room(self, room_name):
+        room = self.rooms.get(room_name)
+        if not room:
+            return
+
+        print(f"Removing room: {room_name}")
+
+        # Optional: stop game loop / cleanup
+        # room.shutdown()  # if you implement one
+
+        del self.rooms[room_name]
 # =====================
 
 clients = {}
