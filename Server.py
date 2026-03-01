@@ -27,7 +27,8 @@ class ClientHelper:
     def last_seen(self):
         return self._client.last_seen
     def Update(self, dt):
-        if self.last_seen() > 10:
+        gg = time.perf_counter() - self.last_seen()
+        if gg > 10 and gg < 1000:
             self.parent.World.Exit()
             self._client.room.remove_client(self._client)
 
@@ -66,9 +67,9 @@ class Room:
         if client in self.clients:
             self.clients.remove(client)
 
-            # Remove from camera/scene if it exists there
-            if client.game_object in self.Camera.children:
-                self.Camera.remove_child(client.game_object)
+            # # Remove from camera/scene if it exists there
+            # if client.game_object in self.Camera.children:
+            #     self.Camera.remove_child(client.game_object)
 
             # Clear the client's room reference
             client.room = None
@@ -218,12 +219,14 @@ def udp_server():
             ptype, cid, keys, dx, dy, timestamp = struct.unpack(
                 CLIENT_PACK_FORMAT, data
             )
-            client = clients[cid]
-            client.udp_addr = addr
+
             if cid not in clients:
                 continue
+            client = clients[cid]
+
             if not client.room:
                 continue
+            client.udp_addr = addr
             client.game_object.ServerController.input_controller(keys, 1 / 60)
             client.game_object.ServerController.mouse_controller(dx, dy)
             if time.perf_counter() - client.last_seen > 1:
