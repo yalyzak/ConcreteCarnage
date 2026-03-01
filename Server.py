@@ -28,7 +28,7 @@ class ClientHelper:
         return self._client.last_seen
     def Update(self, dt):
         gg = time.perf_counter() - self.last_seen()
-        if gg > 10 and gg < 1000:
+        if gg > 10 and gg < 1000: # needs fixing
             self.parent.World.Exit()
             self._client.room.remove_client(self._client)
 
