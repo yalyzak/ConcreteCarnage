@@ -202,7 +202,7 @@ def udp_server():
             if not client.room:
                 continue
             client.game_object.ServerController.input_controller(keys, 1 / 60)
-            # client.game_object.ServerController.mouse_controller(dx, dy)
+            client.game_object.ServerController.mouse_controller(dx, dy)
             if time.perf_counter() - client.last_ping_time > 1:
                 position = client.game_object.position
                 rotation = client.game_object.quaternion

@@ -39,7 +39,7 @@ class PlayerController(Controller):
     # -----------------------------------
     def Update(self, dt):
         self.record_input()
-        # self.mouse_controller()
+        self.mouse_controller()
         self.keyboard_controller(dt)
 
 
