@@ -8,13 +8,15 @@ from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
 from MAP import crateMAP
 from debug import debug
-
+import time
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
 UDP_PORT = 5001
 
-PACK_FORMAT = "BIIhhd"
+CLIENT_PACK_FORMAT = "!BIIhhd"
+PING_FORMAT = "!Bd"
+STATE_FORMAT = "!B10f"
 
 # =====================
 # OBJECTS
@@ -22,7 +24,7 @@ PACK_FORMAT = "BIIhhd"
 def game_object(name):
     return Object(name=name, position=Vector3(5,1,0)).add_component(
     [BoxCollider(),
-    Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(-4,0,0)), ServerController(),
+    Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)), ServerController(),
     ])
 class Client:
     def __init__(self, cid, username):
@@ -70,7 +72,7 @@ class RoomManager:
         box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
             [BoxCollider(), Rigidbody(isKinematic=True)])
 
-        threading.Thread(target=Core.run, args=([room.Camera, box],), kwargs={"Render": True}, daemon=True).start()
+        threading.Thread(target=Core.run, args=([room.Camera, box] + crateMAP(),), kwargs={"Render": True}, daemon=True).start()
 
         return pwd
 
@@ -153,7 +155,6 @@ udp.setblocking(False)
 
 MAX_PACKETS_PER_TICK = 256
 
-
 def udp_server():
 
     while True:
@@ -165,7 +166,7 @@ def udp_server():
             [udp],  # sockets to watch
             [],
             [],
-            0.002   # max wait time (2ms tick)
+            0.0002   # max wait time (2ms tick)
         )
 
         if not readable:
@@ -179,42 +180,44 @@ def udp_server():
                 data, addr = udp.recvfrom(1024)
             except BlockingIOError:
                 break
+            ptype = struct.unpack("!B", data[:1])[0]
 
-            ptype, cid, keys, dx, dy, timestamp = struct.unpack(
-                PACK_FORMAT, data
-            )
+            if ptype == 2:  # ping
 
-            if cid not in clients:
-                continue
+                _, timestamp = struct.unpack(PING_FORMAT, data)
 
+                pong = struct.pack(
+                    PING_FORMAT,
+                    3,
+                    timestamp
+                )
 
+                udp.sendto(pong, addr)
 
-            client = clients[cid]
-            client.udp_addr = addr
-
-            if not client.room:
-                continue
-            if ptype == 1:
+            elif ptype == 1:
+                ptype, cid, keys, dx, dy, timestamp = struct.unpack(
+                    CLIENT_PACK_FORMAT, data
+                )
+                client = clients[cid]
+                client.udp_addr = addr
+                if cid not in clients:
+                    continue
+                if not client.room:
+                    continue
                 client.game_object.ServerController.input_controller(keys, 1 / 60)
-                position = client.game_object.position
-                rotation = client.game_object.quaternion
-
-                data = struct.pack("7f", position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z)
-                # client.room.broadcast(data, client, udp)
                 # client.game_object.ServerController.mouse_controller(dx, dy)
 
-            elif ptype == 2:  # ping
-                pong = struct.pack(
-                    PACK_FORMAT,
-                    3, cid, 0, 0, 0, timestamp
-                )
-                udp.sendto(pong, addr)
+                position = client.game_object.position
+                rotation = client.game_object.quaternion
+                velocity = client.game_object.Rigidbody.velocity
+
+                data = struct.pack(STATE_FORMAT, 4, position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z, velocity.x, velocity.y, velocity.z)
                 client.room.broadcast(data, client, udp)
 
-                continue
 
 
-threading.Thread(target=tcp_server, daemon=True).start()
-threading.Thread(target=udp_server, daemon=True).start()
+
+threading.Thread(target=tcp_server, daemon=False).start()
+threading.Thread(target=udp_server, daemon=False).start()
 
 print("Server running")

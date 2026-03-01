@@ -2,9 +2,14 @@
 import socket
 import struct
 import time
+import select
+from bereshit import Vector3, Quaternion
 
 SERVER = "127.0.0.1"
-PACK_FORMAT = "BIIhhd"
+
+CLIENT_PACK_FORMAT = "!BIIhhd"
+PING_FORMAT = "!Bd"
+STATE_FORMAT = "!B10f"
 
 class Client:
 
@@ -15,14 +20,21 @@ class Client:
         self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        self.udp.setblocking(False)
+        self.udp.settimeout(0.0002)  # seconds
+
+        self.last_ping_time = 0
     def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue.popleft
+
     def Update(self, dt):
         bools, dx, dy = self.input()
         self.send_input(bools, dx, dy)
-        self.ping()
+        if time.perf_counter() - self.last_ping_time > 1.0:
+            self.send_ping()
+
+        self.receive_input()
     def Start(self):
-        # c = Client("Player1")
         self.login()
         self.create_room("room1")
     def login(self):
@@ -49,7 +61,7 @@ class Client:
                 mask |= (1 << i)
 
         packet = struct.pack(
-            PACK_FORMAT,
+            CLIENT_PACK_FORMAT,
             1,
             self.id,
             mask,
@@ -59,35 +71,76 @@ class Client:
         )
 
         self.udp.sendto(packet, (SERVER, 5001))
+    def position_correction(self, game_pos, server_pos, game_vel, server_vel):
 
-    def ping(self):
+
+        # --- Settings ---
+        snap_distance = 5.0  # if too far away -> teleport
+        lerp_speed = 1.0  # smoothing speed
+        velocity_correction = 0.2  # how much velocity to blend
+
+        # --- Position correction ---
+        distance = (server_pos - game_pos).magnitude()
+
+        if distance > snap_distance:
+            # Large error -> snap directly
+            self.parent.position = server_pos
+        else:
+            # Small error -> smooth correction
+            self.parent.position = Vector3.Lerp(
+                game_pos,
+                server_pos,
+                1/60 * lerp_speed
+            )
+
+        # --- Velocity correction ---
+        self.parent.Rigidbody.velocity = Vector3.Lerp(
+            game_vel,
+            server_vel,
+            velocity_correction
+        )
+
+    def handle_packet(self, data):
+        ptype = struct.unpack("!B", data[:1])[0]
+
+        if ptype == 3:  # ping response
+            ts = struct.unpack(PING_FORMAT, data)[1]
+            ping = (time.perf_counter() - ts) * 500  # RTT/2
+            print(f"Ping: {ping:.2f} ms")
+
+        elif ptype == 4:  # movement update
+            px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
+                struct.unpack(STATE_FORMAT, data)[1:]
+
+            game_pos = self.parent.position
+            server_pos = Vector3(px, py, pz)
+            game_vel = self.parent.Rigidbody.velocity
+            server_vel = Vector3(vx, vy, vz)
+
+            self.position_correction(game_pos, server_pos, game_vel, server_vel)
+        else:
+            print("Unknown packet", ptype)
+
+    def receive_input(self):
+        ready, _, _ = select.select([self.udp], [], [], 0.0002)
+        if ready:
+            try:
+                data, _ = self.udp.recvfrom(1024)
+                self.handle_packet(data)
+            except socket.timeout:
+                print("asd")
+
+    def send_ping(self):
         now = time.perf_counter()
+
         packet = struct.pack(
-            PACK_FORMAT,
+            PING_FORMAT,
             2,
-            self.id,
-            0,
-            0,
-            0,
             now
         )
 
         self.udp.sendto(packet, (SERVER, 5001))
-
-        self.udp.settimeout(1)
-
-        try:
-            data, _ = self.udp.recvfrom(1024)
-            ptype, _, _, _, _, ts = struct.unpack(PACK_FORMAT, data)
-
-            if ptype == 3:
-                ping = (time.perf_counter() - ts) * 1000
-                print(f"Ping: {ping:.3f} ms")
-                return ping
-
-        except:
-            print("Ping timeout")
-            return None
+        self.last_ping_time = now
 
 
 # =====================
@@ -95,20 +148,5 @@ if __name__ == "__main__":
     c = Client("Player1")
     c.login()
 
-    # mode = input("create/join: ")
-    # if mode == "create":
-    #     c.create_room("room1")
-    # else:
-    #     pwd = input("password:")
-    #     c.join_room("room1", pwd)
     c.create_room("room1")
-
-    while True:
-        keys = [False] * 32
-        keys[0] = True    # example key
-        keys[30] = True   # left click
-        keys[31] = False  # right click
-
-        c.send_input(keys, 5, -3)
-        c.ping()
 
