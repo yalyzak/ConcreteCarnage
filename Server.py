@@ -33,6 +33,7 @@ class Client:
         self.room = None
         self.udp_addr = None
         self.game_object = game_object(username)
+        self.last_ping_time = 0
 
 class Room:
     def __init__(self, name, password):
@@ -153,8 +154,7 @@ udp.bind(("0.0.0.0", 5001))
 # VERY IMPORTANT
 udp.setblocking(False)
 
-MAX_PACKETS_PER_TICK = 256
-
+MAX_PACKETS_PER_TICK = 200
 def udp_server():
 
     while True:
@@ -166,7 +166,7 @@ def udp_server():
             [udp],  # sockets to watch
             [],
             [],
-            0.0002   # max wait time (2ms tick)
+            0.1   # max wait time (2ms tick)
         )
 
         if not readable:
@@ -175,46 +175,42 @@ def udp_server():
         # ---------------------------------
         # PROCESS MANY PACKETS
         # ---------------------------------
-        while True:
-            try:
-                data, addr = udp.recvfrom(1024)
-            except BlockingIOError:
-                break
-            ptype = struct.unpack("!B", data[:1])[0]
+        data, addr = udp.recvfrom(1024)
+        ptype = struct.unpack("!B", data[:1])[0]
 
-            if ptype == 2:  # ping
+        if ptype == 2:  # ping
 
-                _, timestamp = struct.unpack(PING_FORMAT, data)
+            _, timestamp = struct.unpack(PING_FORMAT, data)
 
-                pong = struct.pack(
-                    PING_FORMAT,
-                    3,
-                    timestamp
-                )
+            pong = struct.pack(
+                PING_FORMAT,
+                3,
+                timestamp
+            )
 
-                udp.sendto(pong, addr)
+            udp.sendto(pong, addr)
 
-            elif ptype == 1:
-                ptype, cid, keys, dx, dy, timestamp = struct.unpack(
-                    CLIENT_PACK_FORMAT, data
-                )
-                client = clients[cid]
-                client.udp_addr = addr
-                if cid not in clients:
-                    continue
-                if not client.room:
-                    continue
-                client.game_object.ServerController.input_controller(keys, 1 / 60)
-                # client.game_object.ServerController.mouse_controller(dx, dy)
+        elif ptype == 1:
 
+            ptype, cid, keys, dx, dy, timestamp = struct.unpack(
+                CLIENT_PACK_FORMAT, data
+            )
+            client = clients[cid]
+            client.udp_addr = addr
+            if cid not in clients:
+                continue
+            if not client.room:
+                continue
+            client.game_object.ServerController.input_controller(keys, 1 / 60)
+            # client.game_object.ServerController.mouse_controller(dx, dy)
+            if time.perf_counter() - client.last_ping_time > 1:
                 position = client.game_object.position
                 rotation = client.game_object.quaternion
                 velocity = client.game_object.Rigidbody.velocity
 
                 data = struct.pack(STATE_FORMAT, 4, position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z, velocity.x, velocity.y, velocity.z)
-                client.room.broadcast(data, client, udp)
-
-
+                client.room.broadcast(data, addr, udp)
+                client.last_ping_time = time.perf_counter()
 
 
 threading.Thread(target=tcp_server, daemon=False).start()

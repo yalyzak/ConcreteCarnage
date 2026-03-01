@@ -24,14 +24,16 @@ class Client:
         self.udp.settimeout(0.0002)  # seconds
 
         self.last_ping_time = 0
+        self.wait = False
     def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue.popleft
 
     def Update(self, dt):
         bools, dx, dy = self.input()
-        self.send_input(bools, dx, dy)
-        if time.perf_counter() - self.last_ping_time > 1.0:
-            self.send_ping()
+        self.send_input(bools, dx, dy, dt)
+        if time.perf_counter() - self.last_ping_time > 0.1:
+            if not self.wait:
+                self.send_ping()
 
         self.receive_input()
     def Start(self):
@@ -52,9 +54,7 @@ class Client:
         self.tcp.send(f"JOIN {room} {pwd}".encode())
         print(self.tcp.recv(128).decode())
 
-    def send_input(self, keys, dx, dy):
-        now = time.perf_counter()
-
+    def send_input(self, keys, dx, dy, dt):
         mask = 0
         for i, pressed in enumerate(keys):
             if pressed:
@@ -67,7 +67,7 @@ class Client:
             mask,
             dx,
             dy,
-            now
+            dt
         )
 
         self.udp.sendto(packet, (SERVER, 5001))
@@ -105,7 +105,9 @@ class Client:
 
         if ptype == 3:  # ping response
             ts = struct.unpack(PING_FORMAT, data)[1]
-            ping = (time.perf_counter() - ts) * 500  # RTT/2
+            self.wait = False
+
+            ping = (time.perf_counter() - ts) * 1000  # RTT/2
             print(f"Ping: {ping:.2f} ms")
 
         elif ptype == 4:  # movement update
@@ -119,6 +121,7 @@ class Client:
 
             self.position_correction(game_pos, server_pos, game_vel, server_vel)
         else:
+            return
             print("Unknown packet", ptype)
 
     def receive_input(self):
@@ -132,6 +135,7 @@ class Client:
 
     def send_ping(self):
         now = time.perf_counter()
+        self.wait = True
 
         packet = struct.pack(
             PING_FORMAT,
