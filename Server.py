@@ -4,19 +4,24 @@ import struct
 import random
 import string
 import select
+
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
 from MAP import crateMAP
-from debug import debug
+from debug import debug, debug2
 import time
+
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
 UDP_PORT = 5001
 
-CLIENT_PACK_FORMAT = "!BIIhhd"
-PING_FORMAT = "!Bd"
-STATE_FORMAT = "!B10f"
+# thread-safe collections
+clients_lock = threading.Lock()
+clients = {}
+
+room_manager_lock = threading.Lock()
 
 # =====================
 # OBJECTS
@@ -27,18 +32,20 @@ class ClientHelper:
     def last_seen(self):
         return self._client.last_seen
     def Update(self, dt):
-        gg = time.perf_counter() - self.last_seen()
-        if gg > 3 and gg < 1000: # needs fixing
-            self.parent.World.Exit()
+        # remove the player if they haven't been heard from in a while
+        if time.perf_counter() - self.last_seen() > 3:
+            # use the client method in case extra cleanup is added later
             self._client.log_out()
+
 
 def game_object(name, client):
     return Object(name=name, position=Vector3(5,1,0)).add_component(
      [BoxCollider(),
      Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
      ServerController(),
-     ClientHelper(client)
-])
+     ClientHelper(client),
+
+      ])
 class Client:
     def __init__(self, cid, username):
         self.id = cid
@@ -46,7 +53,8 @@ class Client:
         self.room = None
         self.udp_addr = None
         self.game_object = game_object(username, self)
-        self.last_seen = 0
+        self.last_seen = time.perf_counter()
+        self.ServerController = self.game_object.ServerController
 
     def log_out(self):
         self.room.remove_client(self)
@@ -58,6 +66,7 @@ class Room:
         self.room_manager = room_manager
         camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
         self.Camera = camera
+        self.last_broadcast = time.perf_counter()
 
     def add_client(self, client):
         if client not in self.clients:
@@ -72,12 +81,27 @@ class Room:
             # Clear the client's room reference
             client.room = None
         if not self.clients:
-            del self.room_manager.rooms[self.name]
+            # no more players: shut down the physics world
+            try:
+                if hasattr(self.Camera, 'World'):
+                    self.Camera.World.Exit()
+            except Exception:
+                pass
+            # remove from manager
+            self.room_manager.remove_room(self.name)
     def broadcast(self, data, sender, udp):
+        """Send *data* to every client in the room.
+
+        If *sender* is provided the packet is not echoed back to that
+        address; pass None to broadcast to everyone (including the origin).
+        """
         for c in self.clients:
-            if c.udp_addr:
-            # if c != sender and c.udp_addr:
-                udp.sendto(data, c.udp_addr)
+            if not c.udp_addr:
+                continue
+            # if sender is not None and c.udp_addr == sender:
+            #     # skip the original sender
+            #     continue
+            udp.sendto(data, c.udp_addr)
 
 class RoomManager:
     def __init__(self):
@@ -87,44 +111,44 @@ class RoomManager:
         return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(6))
 
     def create_room(self, name, owner):
-        if name in self.rooms:
-            return None
+        with room_manager_lock:
+            if name in self.rooms:
+                return None
 
-        pwd = self.generate_password()
-        room = Room(name, pwd, room_manager)
-        room.add_client(owner)  # auto join
-        self.rooms[name] = room
-        box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
-            [BoxCollider(), Rigidbody(isKinematic=True)])
+            pwd = self.generate_password()
+            room = Room(name, pwd, room_manager)
+            room.add_client(owner)  # auto join
+            self.rooms[name] = room
 
-        threading.Thread(target=Core.run, args=([room.Camera, box] + crateMAP(),), kwargs={"Render": True}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True}, daemon=True).start()
 
-        return pwd
+            return pwd
 
     def join_room(self, name, pwd, client):
-        room = self.rooms.get(name)
-        if not room:
-            return False
-        if room.password != pwd:
-            return False
+        with room_manager_lock:
+            room = self.rooms.get(name)
+            if not room:
+                return False
+            if room.password != pwd:
+                return False
 
-        room.add_client(client)
-        return True
+            room.add_client(client)
+            return True
 
     def remove_room(self, room_name):
-        room = self.rooms.get(room_name)
-        if not room:
-            return
+        with room_manager_lock:
+            room = self.rooms.get(room_name)
+            if not room:
+                return
 
-        print(f"Removing room: {room_name}")
+            print(f"Removing room: {room_name}")
 
-        # Optional: stop game loop / cleanup
-        # room.shutdown()  # if you implement one
+            # Optional: stop game loop / cleanup
+            # room.shutdown()  # if you implement one
 
-        del self.rooms[room_name]
+            del self.rooms[room_name]
 # =====================
 
-clients = {}
 room_manager = RoomManager()
 next_id = 1
 
@@ -135,12 +159,18 @@ next_id = 1
 def tcp_thread(conn):
     global next_id
 
-    username = conn.recv(128).decode()
-    cid = next_id
-    next_id += 1
+    try:
+        username = conn.recv(128).decode()
+    except Exception as e:
+        print("TCP recv failed during login", e)
+        conn.close()
+        return
 
-    client = Client(cid, username)
-    clients[cid] = client
+    with clients_lock:
+        cid = next_id
+        next_id += 1
+        client = Client(cid, username)
+        clients[cid] = client
 
     conn.send(f"LOGIN {cid}".encode())
 
@@ -165,7 +195,8 @@ def tcp_thread(conn):
                 ok = room_manager.join_room(cmd[1], cmd[2], client)
                 conn.send(b"JOINED" if ok else b"FAILED")
 
-        except:
+        except Exception as e:
+            print("TCP thread error for client", client.username, e)
             break
 
     conn.close()
@@ -191,67 +222,120 @@ udp.setblocking(False)
 
 MAX_PACKETS_PER_TICK = 200
 def udp_server():
-
+    last_broadcast_all = time.perf_counter()
+    
     while True:
+        # ---------------------------------
+        # WAIT FOR PACKETS with short timeout (responsive but not busy-wait)
+        # ---------------------------------
+        readable, _, _ = select.select([udp], [], [], 0.005)  # 5ms timeout
+
+        if readable:
+            try:
+                while True:  # drain all waiting packets
+                    try:
+                        data, addr = udp.recvfrom(1024)
+                    except BlockingIOError:
+                        break
+                    except Exception as e:
+                        print("UDP recv error", e)
+                        break
+
+                    try:
+                        ptype_val = struct.unpack("!B", data[:1])[0]
+                    except struct.error:
+                        continue
+
+                    if ptype_val == PacketType.PING:
+                        try:
+                            cid, timestamp = struct.unpack(PING_FORMAT, data)[1:]
+                        except struct.error:
+                            continue
+
+                        with clients_lock:
+                            client = clients.get(cid)
+                        if not client or not client.room:
+                            continue
+
+                        # PONG immediately - highest priority
+                        pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
+                        client.last_seen = time.perf_counter()
+                        try:
+                            udp.sendto(pong, addr)
+                        except Exception as e:
+                            print("Failed to send pong", e)
+
+                    elif ptype_val == PacketType.INPUT:
+                        try:
+                            _, cid, keys, dx, dy, timestamp = struct.unpack(CLIENT_PACK_FORMAT, data)
+                        except struct.error:
+                            continue
+
+                        with clients_lock:
+                            client = clients.get(cid)
+                        if not client:
+                            continue
+                        room = client.room
+                        if not room:
+                            continue
+
+                        client.udp_addr = addr
+                        client.last_seen = time.perf_counter()
+                        try:
+                            client.ServerController.input_queue.append((keys, dx, dy))
+
+                        except Exception as e:
+                            print("Input controller error", e)
+
+            except Exception as e:
+                print("Packet processing error", e)
 
         # ---------------------------------
-        # NON-BLOCKING WAIT
+        # BROADCAST GAME STATE (fixed 60 Hz tick)
         # ---------------------------------
-        readable, _, _ = select.select(
-            [udp],  # sockets to watch
-            [],
-            [],
-            0.1   # max wait time (2ms tick)
-        )
+        SERVER_TICK = 1 / 60  # 60 Hz = ~16.67ms between broadcasts
+        now = time.perf_counter()
+        if now - last_broadcast_all > SERVER_TICK:
+            try:
+                with room_manager_lock:
+                    rooms_copy = list(room_manager.rooms.values())
 
-        if not readable:
-            continue  # nothing arrived
+                for room in rooms_copy:
+                    # broadcast all clients in this room to each other
+                    for client in room.clients:
+                        if not client.udp_addr:
+                            continue
+                        position = client.game_object.position
+                        rotation = client.game_object.quaternion
+                        velocity = client.game_object.Rigidbody.velocity
 
-        # ---------------------------------
-        # PROCESS MANY PACKETS
-        # ---------------------------------
-        data, addr = udp.recvfrom(1024)
-        ptype = struct.unpack("!B", data[:1])[0]
+                        data = struct.pack(STATE_FORMAT, PacketType.STATE,
+                                            position.x, position.y, position.z,
+                                            rotation.w, rotation.x, rotation.y, rotation.z,
+                                            velocity.x, velocity.y, velocity.z)
+                        room.broadcast(data, None, udp)  # broadcast to everyone
 
-        if ptype == 2:  # ping
+            except Exception as e:
+                print("Broadcast error", e)
 
-            _, timestamp = struct.unpack(PING_FORMAT, data)
-
-            pong = struct.pack(
-                PING_FORMAT,
-                3,
-                timestamp
-            )
-
-            udp.sendto(pong, addr)
-
-        elif ptype == 1:
-
-            ptype, cid, keys, dx, dy, timestamp = struct.unpack(
-                CLIENT_PACK_FORMAT, data
-            )
-
-            if cid not in clients:
-                continue
-            client = clients[cid]
-
-            if not client.room:
-                continue
-            client.udp_addr = addr
-            client.game_object.ServerController.input_controller(keys, 1 / 60)
-            client.game_object.ServerController.mouse_controller(dx, dy)
-            if time.perf_counter() - client.last_seen > 1:
-                position = client.game_object.position
-                rotation = client.game_object.quaternion
-                velocity = client.game_object.Rigidbody.velocity
-
-                data = struct.pack(STATE_FORMAT, 4, position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z, velocity.x, velocity.y, velocity.z)
-                client.room.broadcast(data, addr, udp)
-                client.last_seen = time.perf_counter()
+            last_broadcast_all = now
 
 
-threading.Thread(target=tcp_server, daemon=False).start()
-threading.Thread(target=udp_server, daemon=False).start()
+def main():
+    # start networking threads as daemons so they exit when main thread stops
+    threading.Thread(target=tcp_server, daemon=True).start()
+    threading.Thread(target=udp_server, daemon=True).start()
 
-print("Server running")
+    print("Server running")
+    try:
+        # keep the main thread alive until interrupted
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Shutting down server...")
+        # sockets will close automatically when program exits
+
+
+if __name__ == "__main__":
+    main()
 

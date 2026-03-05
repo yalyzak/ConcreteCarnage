@@ -5,6 +5,7 @@ from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, Quat
 from Movement import PlayerController
 from MAP import crateMAP
 from debug import debug
+from bereshit.addons.essentials import Shoot
 
 # PLAYER
 player = Object(
@@ -15,11 +16,19 @@ player = Object(
     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True),
     PlayerController(),
     Camera(shading="solid"),
-    Client("Player1", "10.100.102.18"),
+    Client("Player1"), #  "10.100.102.18"
+    Shoot()
+])
+
+enemy = Object(
+    name="enemy",
+    position=Vector3(7,10,0)
+).add_component([
+    BoxCollider(),
+    Rigidbody(useGravity=True),
 
 ])
 camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
-box = Object(name="box", size=Vector3(10, 1, 5), rotation=Vector3(0, 0, 0)).add_component(
-            [BoxCollider(), Rigidbody(isKinematic=True)])
 
-Core.run([player, box] + crateMAP())
+
+Core.run([player, enemy] + crateMAP())

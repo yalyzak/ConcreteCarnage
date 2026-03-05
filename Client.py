@@ -4,12 +4,10 @@ import socket
 import struct
 import time
 import select
-from bereshit import Vector3, Quaternion
 
+from bereshit import Vector3
 
-CLIENT_PACK_FORMAT = "!BIIhhd"
-PING_FORMAT = "!Bd"
-STATE_FORMAT = "!B10f"
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT
 
 class Client:
 
@@ -40,13 +38,17 @@ class Client:
         self.receive_input()
     def Start(self):
         self.login()
-        self.create_room("room1")
+        self.create_room("room1"+ str(random.randint(1, 100 )))
     def login(self):
-        self.tcp.connect((self.server_ip, 5000))
-        self.tcp.send(self.name.encode())
+        try:
+            self.tcp.connect((self.server_ip, 5000))
+            self.tcp.send(self.name.encode())
 
-        msg = self.tcp.recv(128).decode()
-        self.id = int(msg.split()[1])
+            msg = self.tcp.recv(128).decode()
+            self.id = int(msg.split()[1])
+        except Exception as e:
+            print("Login failed", e)
+            raise
 
     def create_room(self, room):
         self.tcp.send(f"CREATE {room}".encode())
@@ -64,7 +66,7 @@ class Client:
 
         packet = struct.pack(
             CLIENT_PACK_FORMAT,
-            1,
+            PacketType.INPUT,
             self.id,
             mask,
             dx,
@@ -77,9 +79,9 @@ class Client:
 
 
         # --- Settings ---
-        snap_distance = 5.0  # if too far away -> teleport
-        lerp_speed = 1.0  # smoothing speed
-        velocity_correction = 0.2  # how much velocity to blend
+        snap_distance = 0.08  # if too far away -> teleport
+        lerp_speed = 0.5  # smoothing speed
+        velocity_correction = 0.9  # how much velocity to blend
 
         # --- Position correction ---
         distance = (server_pos - game_pos).magnitude()
@@ -87,6 +89,7 @@ class Client:
         if distance > snap_distance:
             # Large error -> snap directly
             self.parent.position = server_pos
+            self.parent.Rigidbody.velocity = server_vel
         else:
             # Small error -> smooth correction
             self.parent.position = Vector3.Lerp(
@@ -103,18 +106,30 @@ class Client:
         )
 
     def handle_packet(self, data):
-        ptype = struct.unpack("!B", data[:1])[0]
+        try:
+            ptype = struct.unpack("!B", data[:1])[0]
+        except struct.error:
+            print("Malformed packet received (too short)")
+            return
 
-        if ptype == 3:  # ping response
-            ts = struct.unpack(PING_FORMAT, data)[1]
+        if ptype == PacketType.PONG:
+            try:
+                ts = struct.unpack(PONG_FORMAT, data)[1]
+            except struct.error:
+                print("Bad pong packet")
+                return
             self.wait = False
 
             ping = (time.perf_counter() - ts) * 1000
             print(f"Ping: {ping:.2f} ms")
 
-        elif ptype == 4:  # movement update
-            px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
-                struct.unpack(STATE_FORMAT, data)[1:]
+        elif ptype == PacketType.STATE:
+            try:
+                px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
+                    struct.unpack(STATE_FORMAT, data)[1:]
+            except struct.error:
+                print("Bad state packet")
+                return
 
             game_pos = self.parent.position
             server_pos = Vector3(px, py, pz)
@@ -122,17 +137,25 @@ class Client:
             server_vel = Vector3(vx, vy, vz)
 
             self.position_correction(game_pos, server_pos, game_vel, server_vel)
+
         else:
             print("Unknown packet", ptype)
 
     def receive_input(self):
-        ready, _, _ = select.select([self.udp], [], [], 0.0002)
-        if ready:
+        try:
+            ready, _, _ = select.select([self.udp], [], [], 0.0002)
+        except Exception as e:
+            print("select error on UDP socket", e)
+            return
+        while True:
             try:
                 data, _ = self.udp.recvfrom(1024)
                 self.handle_packet(data)
-            except socket.timeout:
-                print("asd")
+            except BlockingIOError:
+                break
+            except Exception as e:
+                # print("UDP receive error", e)
+                break
 
     def send_ping(self):
         now = time.perf_counter()
@@ -140,7 +163,8 @@ class Client:
 
         packet = struct.pack(
             PING_FORMAT,
-            2,
+            PacketType.PING,
+            self.id,
             now
         )
 
