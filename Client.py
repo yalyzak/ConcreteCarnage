@@ -142,7 +142,6 @@ class Client:
             except struct.error:
                 print("Bad state packet")
                 return
-            print(player_id, self.id)
             server_pos = Vector3(px, py, pz)
             server_vel = Vector3(vx, vy, vz)
             if player_id == self.id:
