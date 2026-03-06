@@ -44,6 +44,7 @@ def game_object(name, client):
      Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
      ServerController(),
      ClientHelper(client),
+      debug()
 
       ])
 class Client:
@@ -120,7 +121,7 @@ class RoomManager:
             room.add_client(owner)  # auto join
             self.rooms[name] = room
 
-            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : 1/10}, daemon=True).start()
 
             return pwd
 

@@ -42,7 +42,7 @@ class PlayerController(Controller):
     # -----------------------------------
     def Update(self, dt):
         self.record_input()
-        self.mouse_controller()
+        # self.mouse_controller()
         self.keyboard_controller(dt)
 
 
@@ -106,16 +106,11 @@ class PlayerController(Controller):
     # KEYBOARD MOVEMENT
     # -----------------------------------
     def keyboard_controller(self, dt):
-
-        max_speed = 2
         if keyboard.is_pressed('w'):
-            self.sendt += 1
-
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
             forward = Vector3(forward.x, 0, forward.z).normalized()
 
             self.parent.Rigidbody.velocity += forward * self.force_amount * dt
-            # print(self.sendt, forward * self.force_amount * dt)
 
         if keyboard.is_pressed('s'):
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
@@ -140,30 +135,22 @@ class PlayerController(Controller):
             ) * dt
 
         if keyboard.is_pressed('left shift'):
-            max_speed = 4
-            # self.parent.Rigidbody.velocity += Vector3(
-            #     0,
-            #     -self.force_amount * 3,
-            #     0
-            # ) * dt
+            self.parent.Rigidbody.velocity += Vector3(
+                0,
+                -self.force_amount * 3,
+                0
+            ) * dt
 
 
-        velocity = self.parent.Rigidbody.velocity
-        speed = velocity.magnitude()
-
-        if speed > max_speed:
-            self.parent.Rigidbody.velocity = velocity.normalized() * max_speed
 class ServerController(Controller):
     def Update(self, dt):
         if self.input_queue:
             keys, dx, dy = self.input_queue.pop()
-            self.input_controller(keys, 1 / 60)
-            self.mouse_controller(dx, dy)
+            self.input_controller(keys, dt)
+            # self.mouse_controller(dx, dy)
     def read_input(self):
         return self.input_queue.pop()
     def input_controller(self, keys, dt):
-        max_speed = 2
-
         keys = [(keys >> i) & 1 == 1 for i in range(32)]
 
         if keys[0]:
@@ -173,8 +160,6 @@ class ServerController(Controller):
             forward = Vector3(forward.x, 0, forward.z).normalized()
 
             self.parent.Rigidbody.velocity += forward * self.force_amount * dt
-            self.sendt += 1
-            # print(self.sendt, self.parent.Rigidbody.velocity)
 
         if keys[1]:
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
@@ -199,18 +184,11 @@ class ServerController(Controller):
             ) * dt
 
         if keys[5]:
-            max_speed = 4
-
-            # self.parent.Rigidbody.velocity += Vector3(
-            #     0,
-            #     -self.force_amount * 3,
-            #     0
-            # ) * dt
-        velocity = self.parent.Rigidbody.velocity
-        speed = velocity.magnitude()
-
-        if speed > max_speed:
-            self.parent.Rigidbody.velocity = velocity.normalized() * max_speed
+            self.parent.Rigidbody.velocity -= Vector3(
+                0,
+                self.force_amount * 3,
+                0
+            ) * dt
     def mouse_controller(self, dx, dy):
         sensitivity = 0.001
 
