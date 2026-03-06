@@ -5,7 +5,7 @@ import struct
 import time
 import select
 
-from bereshit import Vector3
+from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT
 
@@ -21,12 +21,13 @@ class Client:
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.udp.setblocking(False)
-        self.udp.settimeout(0.0002)  # seconds
+        self.udp.settimeout(0.002)  # seconds
 
         self.last_ping_time = 0
         self.wait = False
-    def attach(self, owner_object):
 
+        self.players = Object(size=Vector3(0,0,0), name="players")
+    def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue
 
     def Update(self, dt):
@@ -39,9 +40,10 @@ class Client:
 
         self.receive_input()
     def Start(self):
+        self.parent.World.add_object(self.players)
         self.login()
         self.create_room("room1")
-        self.join_room("room1", "0") # temp for testing
+        # self.join_room("room1", "0") # temp for testing
     def login(self):
         try:
             self.tcp.connect((self.server_ip, 5000))
@@ -49,6 +51,7 @@ class Client:
 
             msg = self.tcp.recv(128).decode()
             self.id = int(msg.split()[1])
+            print("id", self.id)
         except Exception as e:
             print("Login failed", e)
             raise
@@ -78,6 +81,13 @@ class Client:
         )
 
         self.udp.sendto(packet, (self.server_ip, 5001))
+    @staticmethod
+    def game_object(player_id, server_pos, server_vel):
+         return Object(name=player_id, position=server_pos).add_component(
+            [BoxCollider(),
+             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel)
+             ])
+
     def position_correction(self, game_pos, server_pos, game_vel, server_vel):
 
 
@@ -107,7 +117,6 @@ class Client:
             server_vel,
             velocity_correction
         )
-
     def handle_packet(self, data):
         try:
             ptype = struct.unpack("!B", data[:1])[0]
@@ -124,7 +133,7 @@ class Client:
             self.wait = False
 
             ping = (time.perf_counter() - ts) * 1000
-            print(f"Ping: {ping:.2f} ms")
+            # print(f"Ping: {ping:.2f} ms")
 
         elif ptype == PacketType.STATE:
             try:
@@ -133,16 +142,23 @@ class Client:
             except struct.error:
                 print("Bad state packet")
                 return
+            print(player_id, self.id)
+            server_pos = Vector3(px, py, pz)
+            server_vel = Vector3(vx, vy, vz)
             if player_id == self.id:
-                game_pos = self.parent.position
-                server_pos = Vector3(px, py, pz)
-                game_vel = self.parent.Rigidbody.velocity
-                server_vel = Vector3(vx, vy, vz)
-
+                # game_pos = self.parent.position
+                # game_vel = self.parent.Rigidprogrambody.velocity
+                pass
                 # self.position_correction(game_pos, server_pos, game_vel, server_vel)
-
             else:
-                print("new player", px)
+                player = self.players.search(player_id)
+                if player:
+                    player.position = server_pos
+                    player.Rigidbody.velocity = server_vel
+                else:
+                    self.players.add_child(self.game_object(player_id, server_pos, server_vel))
+                    print("new player joined")
+
         else:
             print("Unknown packet", ptype)
 
@@ -178,9 +194,12 @@ class Client:
 
 
 # =====================
-if __name__ == "__main__":
-    c = Client("Player1")
-    c.login()
-
-    c.create_room("room1")
+# if __name__ == "__main__":
+#     c = Client("Player1")
+#     c.login()
+#
+#     c.create_room("room1")
+#     while True:
+#         c.send_ping()
+#         time.sleep(1)
 

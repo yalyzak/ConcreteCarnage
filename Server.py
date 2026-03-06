@@ -36,6 +36,8 @@ class ClientHelper:
         if time.perf_counter() - self.last_seen() > 3:
             # use the client method in case extra cleanup is added later
             self._client.log_out()
+            print("logging out ", self.parent.name)
+            self.parent.destroy()
 
 
 def game_object(name, client):
@@ -96,8 +98,8 @@ class Room:
         address; pass None to broadcast to everyone (including the origin).
         """
         for c in self.clients:
-            if not c.udp_addr:
-                continue
+            # if not c.udp_addr:
+            #     continue
             # if sender is not None and c.udp_addr == sender:
             #     # skip the original sender
             #     continue
@@ -258,6 +260,7 @@ def udp_server():
                         if not client or not client.room:
                             continue
 
+                        client.udp_addr = addr
                         # PONG immediately - highest priority
                         pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
                         client.last_seen = time.perf_counter()
@@ -269,6 +272,7 @@ def udp_server():
                     elif ptype_val == PacketType.INPUT:
                         try:
                             _, cid, keys, dx, dy, timestamp = struct.unpack(CLIENT_PACK_FORMAT, data)
+
                         except struct.error:
                             continue
 
@@ -282,6 +286,8 @@ def udp_server():
 
                         client.udp_addr = addr
                         client.last_seen = time.perf_counter()
+
+
                         try:
                             client.ServerController.input_queue.append((keys, dx, dy))
 

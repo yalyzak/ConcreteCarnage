@@ -27,6 +27,7 @@ enemy = Object(
     BoxCollider(),
     Rigidbody(useGravity=True),
 
+
 ])
 camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
 
