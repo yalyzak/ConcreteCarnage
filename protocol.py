@@ -12,4 +12,4 @@ class PacketType(IntEnum):
 CLIENT_PACK_FORMAT = "!BIIhhd"  # type, id, mask, dx, dy, dt
 PING_FORMAT = "!BId"            # type, id, timestamp
 PONG_FORMAT = "!Bd"             # type, timestamp
-STATE_FORMAT = "!B10f"          # type + 10 floats: pos(3), quat(4), vel(3)
+STATE_FORMAT = "!BI10f"          # type + id + 10 floats: id, pos(3), quat(4), vel(3)

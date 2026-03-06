@@ -3,7 +3,7 @@ from Client import Client
 # PLAYER
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, Quaternion
 from Movement import PlayerController
-from MAP import crateMAP
+from MAP import crateMAP, tick_rate
 from debug import debug, debug2
 from bereshit.addons.essentials import Shoot
 
@@ -16,9 +16,8 @@ player = Object(
     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True),
     PlayerController(),
     Camera(shading="solid"),
-    Client("Player1"), #  "10.100.102.18"
+    Client("Player1",), #"192.168.1.163"
     # Shoot(),
-    debug()
 ])
 
 enemy = Object(
@@ -32,4 +31,4 @@ enemy = Object(
 camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
 
 
-Core.run([player, enemy] + crateMAP(), tick=1/10)
+Core.run([player, enemy] + crateMAP(), tick=tick_rate)

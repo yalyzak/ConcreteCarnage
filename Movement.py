@@ -57,18 +57,18 @@ class PlayerController(Controller):
 
         # keyboard bools
         key_states = [keyboard.is_pressed(k) for k in self.keys]
+        if dx != 0 or dy != 0 or True in key_states:
+            # mouse buttons as bools
+            mouse_left = mouse.is_pressed('left')
+            mouse_right = mouse.is_pressed('right')
 
-        # mouse buttons as bools
-        mouse_left = mouse.is_pressed('left')
-        mouse_right = mouse.is_pressed('right')
+            bool_list = key_states + [
+                mouse_left,
+                mouse_right
+            ]
 
-        bool_list = key_states + [
-            mouse_left,
-            mouse_right
-        ]
-
-        # store input frame
-        self.input_queue.append((bool_list, dx, dy))
+            # store input frame
+            self.input_queue.append((bool_list, dx, dy))
 
     # -----------------------------------
     # MOUSE LOOK

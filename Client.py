@@ -26,11 +26,13 @@ class Client:
         self.last_ping_time = 0
         self.wait = False
     def attach(self, owner_object):
-        self.input = owner_object.PlayerController.input_queue.popleft
+
+        self.input = owner_object.PlayerController.input_queue
 
     def Update(self, dt):
-        bools, dx, dy = self.input()
-        self.send_input(bools, dx, dy, dt)
+        if self.input:
+            bools, dx, dy = self.input.popleft()
+            self.send_input(bools, dx, dy, dt)
         if time.perf_counter() - self.last_ping_time > 0.1:
             if not self.wait:
                 self.send_ping()
@@ -79,7 +81,7 @@ class Client:
 
 
         # --- Settings ---
-        snap_distance = 0.08  # if too far away -> teleport
+        snap_distance = 3.8  # if too far away -> teleport
         lerp_speed = 0.5  # smoothing speed
         velocity_correction = 0.9  # how much velocity to blend
 
@@ -125,19 +127,21 @@ class Client:
 
         elif ptype == PacketType.STATE:
             try:
-                px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
+                player_id, px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
                     struct.unpack(STATE_FORMAT, data)[1:]
             except struct.error:
                 print("Bad state packet")
                 return
+            if player_id == self.id:
+                game_pos = self.parent.position
+                server_pos = Vector3(px, py, pz)
+                game_vel = self.parent.Rigidbody.velocity
+                server_vel = Vector3(vx, vy, vz)
 
-            game_pos = self.parent.position
-            server_pos = Vector3(px, py, pz)
-            game_vel = self.parent.Rigidbody.velocity
-            server_vel = Vector3(vx, vy, vz)
+                # self.position_correction(game_pos, server_pos, game_vel, server_vel)
 
-            self.position_correction(game_pos, server_pos, game_vel, server_vel)
-
+            else:
+                print("new player", px)
         else:
             print("Unknown packet", ptype)
 

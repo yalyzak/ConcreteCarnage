@@ -7,7 +7,7 @@ import select
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
-from MAP import crateMAP
+from MAP import crateMAP, tick_rate
 from debug import debug, debug2
 import time
 
@@ -44,7 +44,6 @@ def game_object(name, client):
      Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
      ServerController(),
      ClientHelper(client),
-      debug()
 
       ])
 class Client:
@@ -90,7 +89,7 @@ class Room:
                 pass
             # remove from manager
             self.room_manager.remove_room(self.name)
-    def broadcast(self, data, sender, udp):
+    def broadcast(self, data, udp):
         """Send *data* to every client in the room.
 
         If *sender* is provided the packet is not echoed back to that
@@ -121,7 +120,7 @@ class RoomManager:
             room.add_client(owner)  # auto join
             self.rooms[name] = room
 
-            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : 1/10}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : tick_rate}, daemon=True).start()
 
             return pwd
 
@@ -311,10 +310,11 @@ def udp_server():
                         velocity = client.game_object.Rigidbody.velocity
 
                         data = struct.pack(STATE_FORMAT, PacketType.STATE,
+                                            client.id,
                                             position.x, position.y, position.z,
                                             rotation.w, rotation.x, rotation.y, rotation.z,
                                             velocity.x, velocity.y, velocity.z)
-                        room.broadcast(data, None, udp)  # broadcast to everyone
+                        room.broadcast(data, udp)  # broadcast to everyone
 
             except Exception as e:
                 print("Broadcast error", e)

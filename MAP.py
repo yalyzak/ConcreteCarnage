@@ -1,5 +1,5 @@
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
-
+tick_rate = 1/10
 def crateMAP():
 
     # ========================
