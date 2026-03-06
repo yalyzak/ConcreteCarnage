@@ -116,6 +116,7 @@ class RoomManager:
                 return None
 
             pwd = self.generate_password()
+            pwd = "0" # temp for testing
             room = Room(name, pwd, room_manager)
             room.add_client(owner)  # auto join
             self.rooms[name] = room

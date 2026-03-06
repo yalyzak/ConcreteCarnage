@@ -40,7 +40,8 @@ class Client:
         self.receive_input()
     def Start(self):
         self.login()
-        self.create_room("room1"+ str(random.randint(1, 100 )))
+        self.create_room("room1")
+        self.join_room("room1", "0") # temp for testing
     def login(self):
         try:
             self.tcp.connect((self.server_ip, 5000))
