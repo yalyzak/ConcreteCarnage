@@ -1,12 +1,10 @@
 from Client import Client
-# import Server
-# PLAYER
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, Quaternion
 from Movement import PlayerController
 from MAP import crateMAP
 from protocol import TICK
 from debug import debug, debug2
-from bereshit.addons.essentials import Shoot
+from Shoot import Shoot
 
 # PLAYER
 player = Object(
