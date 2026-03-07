@@ -7,7 +7,7 @@ import select
 
 from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, DEATH_FORMAT
 
 class Client:
 
@@ -161,10 +161,22 @@ class Client:
             try:
                 hp = struct.unpack(DAMAGE_FORMAT, data)[1]
             except struct.error:
-                print("Bad state damage")
+                print("Bad damage packet")
                 return
             self.parent.Player.set_hp(hp)
-            print(hp)
+
+        elif ptype == PacketType.DEATH:
+             try:
+                player_id = struct.unpack(DEATH_FORMAT, data)[1]
+                if player_id == self.id:
+                    self.parent.Player.Death()
+                if player_id != self.id:
+                    player = self.players.search(player_id)
+                    if player:
+                        player.Player.Death()
+             except:
+                 print("Bad death packet")
+
         else:
             print("Unknown packet", ptype)
 

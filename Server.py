@@ -15,7 +15,7 @@ from Player import ServerPlayer
 
 import time
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, DEATH_FORMAT
 
 
 HOST = "0.0.0.0"
@@ -31,7 +31,12 @@ room_manager_lock = threading.Lock()
 # =====================
 # OBJECTS
 # =====================
+def dead_message(cid):
+    return struct.pack(DEATH_FORMAT, PacketType.DEATH, cid)
+
 class ClientHelper:
+    logout_deque = deque(maxlen=200)
+
     def __init__(self, client):
         self._client = client
         self.messages_queue = deque(maxlen=20)
@@ -41,6 +46,9 @@ class ClientHelper:
 
     def send(self, message):
         self.messages_queue.append(message)
+
+    def dead(self):
+        ClientHelper.logout_deque.append(self._client)
 
     def Update(self, dt):
         # remove the player if they haven't been heard from in a while
@@ -52,14 +60,15 @@ class ClientHelper:
 
 
 def game_object(name, client):
-    return Object(name=name, position=Vector3(5,1,random.randint(0, 20))).add_component(
-        [BoxCollider(),
-        Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
-        ServerController(),
-        ClientHelper(client),
-        Shoot(),
-        ServerPlayer()
-      ])
+    return Object(name=name, position=Vector3(5, 1, random.randint(0, 20))).add_component(
+        [
+            BoxCollider(),
+            Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0)),
+            ServerController(),
+            ClientHelper(client),
+            Shoot(),
+            ServerPlayer()
+        ])
 class Client:
     def __init__(self, cid, username):
         self.id = cid
@@ -236,6 +245,8 @@ udp.bind(("0.0.0.0", 5001))
 # VERY IMPORTANT
 udp.setblocking(False)
 
+
+
 MAX_PACKETS_PER_TICK = 200
 def udp_server():
     last_broadcast_all = time.perf_counter()
@@ -254,7 +265,7 @@ def udp_server():
                     except BlockingIOError:
                         break
                     except Exception as e:
-                        print("UDP recv error", e)
+                        # print("UDP recv error", e)
                         break
 
                     try:
@@ -356,6 +367,16 @@ def udp_server():
                             udp.sendto(queue.pop(), client.udp_addr)
                         except Exception as e:
                             print("Failed to send update message from server", e)
+
+            logout_queue = ClientHelper.logout_deque
+            if logout_queue:
+                try:
+                    client = logout_queue.pop()
+                    room = client.room
+                    room.broadcast(dead_message(client.id), udp)
+                except Exception as e:
+                    print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)
+
         except Exception as e:
             print("Updating error", e)
 
