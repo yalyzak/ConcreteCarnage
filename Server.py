@@ -9,6 +9,8 @@ from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
 from MAP import crateMAP
 from debug import debug, debug2
+from Shoot import Shoot
+from Player import Player
 import time
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK
@@ -42,11 +44,12 @@ class ClientHelper:
 
 def game_object(name, client):
     return Object(name=name, position=Vector3(5,1,0)).add_component(
-     [BoxCollider(),
-     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
-     ServerController(),
-     ClientHelper(client),
-
+        [BoxCollider(),
+        Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
+        ServerController(),
+        ClientHelper(client),
+        Shoot(),
+        Player()
       ])
 class Client:
     def __init__(self, cid, username):

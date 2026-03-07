@@ -5,7 +5,7 @@ from MAP import crateMAP
 from protocol import TICK
 from debug import debug, debug2
 from Shoot import Shoot
-
+from Player import Player
 # PLAYER
 player = Object(
     name="player",
@@ -17,6 +17,7 @@ player = Object(
     Camera(shading="solid"),
     Client("Player1",), #"192.168.1.163"
     Shoot(),
+    Player()
 ])
 
 enemy = Object(
