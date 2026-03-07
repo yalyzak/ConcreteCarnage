@@ -9,6 +9,8 @@ from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, DEATH_FORMAT
 
+from Player import GamePlayer
+
 class Client:
 
     def __init__(self, name, ip = "127.0.0.1"):
@@ -85,7 +87,8 @@ class Client:
     def game_object(player_id, server_pos, server_vel):
          return Object(name=player_id, position=server_pos).add_component(
             [BoxCollider(),
-             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel)
+             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel),
+             GamePlayer()
              ])
 
     def position_correction(self, game_pos, server_pos, game_vel, server_vel):
@@ -170,7 +173,7 @@ class Client:
                 player_id = struct.unpack(DEATH_FORMAT, data)[1]
                 if player_id == self.id:
                     self.parent.Player.Death()
-                if player_id != self.id:
+                else:
                     player = self.players.search(player_id)
                     if player:
                         player.Player.Death()
