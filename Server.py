@@ -31,6 +31,7 @@ room_manager_lock = threading.Lock()
 class ClientHelper:
     def __init__(self, client):
         self._client = client
+
     def last_seen(self):
         return self._client.last_seen
     def Update(self, dt):
@@ -323,7 +324,8 @@ def udp_server():
                                             client.id,
                                             position.x, position.y, position.z,
                                             rotation.w, rotation.x, rotation.y, rotation.z,
-                                            velocity.x, velocity.y, velocity.z)
+                                            velocity.x, velocity.y, velocity.z,
+                                            )
                         room.broadcast(data, udp)  # broadcast to everyone
 
             except Exception as e:

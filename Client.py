@@ -192,12 +192,12 @@ class Client:
 
 
 # =====================
-# if __name__ == "__main__":
-#     c = Client("Player1")
-#     c.login()
-#
-#     c.create_room("room1")
-#     while True:
-#         c.send_ping()
-#         time.sleep(1)
+if __name__ == "__main__":
+    c = Client("Player1")
+    c.login()
+
+    c.create_room("room1")
+    while True:
+        c.send_ping()
+        time.sleep(1)
 
