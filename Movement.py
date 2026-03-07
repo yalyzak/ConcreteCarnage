@@ -18,7 +18,7 @@ class Controller:
         self.sendt = 0
 
         # queue storing (bool_list, dx, dy)
-        self.input_queue = deque(maxlen=1000)
+        self.input_queue = deque(maxlen=100)
 
         # keys recorded as booleans
         self.keys = [

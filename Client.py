@@ -7,7 +7,7 @@ import select
 
 from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT
 
 class Client:
 
@@ -157,6 +157,14 @@ class Client:
                     self.players.add_child(self.game_object(player_id, server_pos, server_vel))
                     print("new player joined")
 
+        elif ptype == PacketType.DAMAGE:
+            try:
+                hp = struct.unpack(DAMAGE_FORMAT, data)[1]
+            except struct.error:
+                print("Bad state damage")
+                return
+            self.parent.Player.set_hp(hp)
+            print(hp)
         else:
             print("Unknown packet", ptype)
 

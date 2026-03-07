@@ -4,16 +4,19 @@ import struct
 import random
 import string
 import select
+from collections import deque
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
 from MAP import crateMAP
 from debug import debug, debug2
 from Shoot import Shoot
-from Player import Player
+from Player import ServerPlayer
+
 import time
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK
+
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
@@ -31,9 +34,14 @@ room_manager_lock = threading.Lock()
 class ClientHelper:
     def __init__(self, client):
         self._client = client
+        self.messages_queue = deque(maxlen=20)
 
     def last_seen(self):
         return self._client.last_seen
+
+    def send(self, message):
+        self.messages_queue.append(message)
+
     def Update(self, dt):
         # remove the player if they haven't been heard from in a while
         if time.perf_counter() - self.last_seen() > 3:
@@ -44,13 +52,13 @@ class ClientHelper:
 
 
 def game_object(name, client):
-    return Object(name=name, position=Vector3(5,1,0)).add_component(
+    return Object(name=name, position=Vector3(5,1,random.randint(0, 20))).add_component(
         [BoxCollider(),
         Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True, velocity=Vector3(0,0,0)),
         ServerController(),
         ClientHelper(client),
         Shoot(),
-        Player()
+        ServerPlayer()
       ])
 class Client:
     def __init__(self, cid, username):
@@ -332,7 +340,24 @@ def udp_server():
                 print("Broadcast error", e)
 
             last_broadcast_all = now
+        try:
+            with room_manager_lock:
+                rooms_copy = list(room_manager.rooms.values())
 
+            for room in rooms_copy:
+                # broadcast all clients in this room to each other
+                for client in room.clients:
+                    if not client.udp_addr:
+                        continue
+
+                    queue = client.game_object.ClientHelper.messages_queue
+                    if queue:
+                        try:
+                            udp.sendto(queue.pop(), client.udp_addr)
+                        except Exception as e:
+                            print("Failed to send update message from server", e)
+        except Exception as e:
+            print("Updating error", e)
 
 def main():
     # start networking threads as daemons so they exit when main thread stops
