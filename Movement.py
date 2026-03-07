@@ -9,7 +9,7 @@ CENTER_Y = 540
 class Controller:
     def __init__(self, speed=5, sensitivity=0.1):
         self.force_amount = speed
-        self.force_amount = 18
+        self.force_amount = 10
 
         self.sensitivity = sensitivity
 
@@ -41,22 +41,16 @@ class PlayerController(Controller):
     # UPDATE
     # -----------------------------------
     def Update(self, dt):
-        self.record_input()
-        # self.mouse_controller()
-        self.keyboard_controller(dt)
+        x, y = self.mouse_controller()
+        keys = self.keyboard_controller(dt)
+        self.record_input(keys, x, y)
 
 
     # -----------------------------------
     # INPUT RECORDING
     # -----------------------------------
-    def record_input(self):
-        x, y = mouse.get_position()
+    def record_input(self, key_states, dx, dy):
 
-        dx = x - CENTER_X
-        dy = y - CENTER_Y
-
-        # keyboard bools
-        key_states = [keyboard.is_pressed(k) for k in self.keys]
         if dx != 0 or dy != 0 or True in key_states:
             # mouse buttons as bools
             mouse_left = mouse.is_pressed('left')
@@ -68,7 +62,7 @@ class PlayerController(Controller):
             ]
 
             # store input frame
-            self.input_queue.append((bool_list, dx, dy))
+            self.input_queue.append([bool_list, dx, dy])
 
     # -----------------------------------
     # MOUSE LOOK
@@ -78,7 +72,6 @@ class PlayerController(Controller):
 
         dx = x - CENTER_X
         dy = y - CENTER_Y
-
         sensitivity = 0.001
 
         # apply rotation
@@ -98,56 +91,57 @@ class PlayerController(Controller):
         )
 
         self.parent.quaternion = yaw_q * pitch_q
-
         # recenter mouse
         mouse.move(CENTER_X, CENTER_Y)
+        return dx, dy
 
     # -----------------------------------
     # KEYBOARD MOVEMENT
     # -----------------------------------
     def keyboard_controller(self, dt):
-        if keyboard.is_pressed('w'):
+        key_states = [keyboard.is_pressed(k) for k in self.keys]
+        if key_states[0]:
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
             forward = Vector3(forward.x, 0, forward.z).normalized()
 
             self.parent.Rigidbody.velocity += forward * self.force_amount * dt
 
-        if keyboard.is_pressed('s'):
+        if key_states[1]:
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
             backward = Vector3(backward.x, 0, backward.z).normalized()
             self.parent.Rigidbody.velocity += backward * self.force_amount * dt
 
-        if keyboard.is_pressed('a'):
+        if key_states[2]:
             right = self.parent.quaternion.rotate(Vector3(1, 0, 0))
             right = Vector3(right.x, 0, right.z).normalized()
             self.parent.Rigidbody.velocity += right * self.force_amount * dt
 
-        if keyboard.is_pressed('d'):
+        if key_states[3]:
             left = self.parent.quaternion.rotate(Vector3(-1, 0, 0))
             left = Vector3(left.x, 0, left.z).normalized()
             self.parent.Rigidbody.velocity += left * self.force_amount * dt
 
-        if keyboard.is_pressed('space'):
+        if key_states[4]:
             self.parent.Rigidbody.velocity += Vector3(
                 0,
-                self.force_amount * 3,
+                self.force_amount * 2,
                 0
             ) * dt
 
-        if keyboard.is_pressed('left shift'):
+        if key_states[5]:
             self.parent.Rigidbody.velocity += Vector3(
                 0,
-                -self.force_amount * 3,
+                -self.force_amount * 2,
                 0
             ) * dt
-
+        return key_states
 
 class ServerController(Controller):
     def Update(self, dt):
         if self.input_queue:
             keys, dx, dy = self.input_queue.pop()
             self.input_controller(keys, dt)
-            # self.mouse_controller(dx, dy)
+            self.mouse_controller(dx, dy)
     def read_input(self):
         return self.input_queue.pop()
     def input_controller(self, keys, dt):
@@ -179,14 +173,14 @@ class ServerController(Controller):
         if keys[4]:
             self.parent.Rigidbody.velocity += Vector3(
                 0,
-                self.force_amount * 3,
+                self.force_amount * 2,
                 0
             ) * dt
 
         if keys[5]:
             self.parent.Rigidbody.velocity -= Vector3(
                 0,
-                self.force_amount * 3,
+                self.force_amount * 2,
                 0
             ) * dt
     def mouse_controller(self, dx, dy):

@@ -7,11 +7,11 @@ import select
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
-from MAP import crateMAP, tick_rate
+from MAP import crateMAP
 from debug import debug, debug2
 import time
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
@@ -103,7 +103,8 @@ class Room:
             # if sender is not None and c.udp_addr == sender:
             #     # skip the original sender
             #     continue
-            udp.sendto(data, c.udp_addr)
+            if c.udp_addr:
+                udp.sendto(data, c.udp_addr)
 
 class RoomManager:
     def __init__(self):
@@ -123,7 +124,7 @@ class RoomManager:
             room.add_client(owner)  # auto join
             self.rooms[name] = room
 
-            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : tick_rate}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : TICK}, daemon=True).start()
 
             return pwd
 
@@ -260,7 +261,6 @@ def udp_server():
                         if not client or not client.room:
                             continue
 
-                        client.udp_addr = addr
                         # PONG immediately - highest priority
                         pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
                         client.last_seen = time.perf_counter()

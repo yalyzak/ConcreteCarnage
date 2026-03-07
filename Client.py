@@ -34,7 +34,7 @@ class Client:
         if self.input:
             bools, dx, dy = self.input.popleft()
             self.send_input(bools, dx, dy, dt)
-        if time.perf_counter() - self.last_ping_time > 0.1:
+        if time.perf_counter() - self.last_ping_time > 1:
             if not self.wait:
                 self.send_ping()
 
@@ -92,7 +92,7 @@ class Client:
 
 
         # --- Settings ---
-        snap_distance = 3.8  # if too far away -> teleport
+        snap_distance = 1.8  # if too far away -> teleport
         lerp_speed = 0.5  # smoothing speed
         velocity_correction = 0.9  # how much velocity to blend
 
@@ -145,10 +145,9 @@ class Client:
             server_pos = Vector3(px, py, pz)
             server_vel = Vector3(vx, vy, vz)
             if player_id == self.id:
-                # game_pos = self.parent.position
-                # game_vel = self.parent.Rigidprogrambody.velocity
-                pass
-                # self.position_correction(game_pos, server_pos, game_vel, server_vel)
+                game_pos = self.parent.position
+                game_vel = self.parent.Rigidbody.velocity
+                self.position_correction(game_pos, server_pos, game_vel, server_vel)
             else:
                 player = self.players.search(player_id)
                 if player:
