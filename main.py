@@ -15,7 +15,7 @@ player = Object(
     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True),
     PlayerController(),
     Camera(shading="solid"),
-    Client("Player1",), #"192.168.1.163"
+    # Client("Player1",), #"192.168.1.163"
     Shoot(),
     GamePlayer()
 ])

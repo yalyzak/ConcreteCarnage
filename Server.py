@@ -51,13 +51,11 @@ class ClientHelper:
         ClientHelper.logout_deque.append(self._client)
 
     def Update(self, dt):
-        return # needs fixing
         # remove the player if they haven't been heard from in a while
         if time.perf_counter() - self.last_seen() > 3:
+            print("logging out ", self.parent.name)
             # use the client method in case extra cleanup is added later
             self._client.log_out()
-            print("logging out ", self.parent.name)
-            self.parent.destroy()
 
 
 def game_object(name, client):

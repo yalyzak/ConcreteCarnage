@@ -1,4 +1,4 @@
-from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
+from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, MeshRander
 
 
 def crateMAP():
@@ -50,7 +50,7 @@ def crateMAP():
     # ========================
 
     boxes = [
-        Object(position=Vector3(-10,1,10), size=Vector3(2,2,2)),
+        Object(position=Vector3(-10,1,10), size=Vector3(2,2,2)).add_component(MeshRander(obj_path="models/concrete_block_low_poly.glb")),
         Object(position=Vector3(-12,1,8), size=Vector3(2,2,2)),
         Object(position=Vector3(10,1,-10), size=Vector3(2,2,2)),
         Object(position=Vector3(12,1,-8), size=Vector3(2,2,2)),
