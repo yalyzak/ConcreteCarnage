@@ -126,7 +126,7 @@ class PlayerController(Controller):
 
         dx = x - CENTER_X
         dy = y - CENTER_Y
-        # mouse.move(CENTER_X, CENTER_Y)
+        mouse.move(CENTER_X, CENTER_Y)
 
         return dx, dy
 
