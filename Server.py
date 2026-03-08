@@ -51,6 +51,7 @@ class ClientHelper:
         ClientHelper.logout_deque.append(self._client)
 
     def Update(self, dt):
+        return # needs fixing
         # remove the player if they haven't been heard from in a while
         if time.perf_counter() - self.last_seen() > 3:
             # use the client method in case extra cleanup is added later
@@ -100,6 +101,7 @@ class Room:
     def remove_client(self, client):
         if client in self.clients:
             self.clients.remove(client)
+            client.game_object.destroy()
 
             # Clear the client's room reference
             client.room = None
@@ -374,6 +376,7 @@ def udp_server():
                     client = logout_queue.pop()
                     room = client.room
                     room.broadcast(dead_message(client.id), udp)
+                    client.log_out()
                 except Exception as e:
                     print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)
 
