@@ -48,8 +48,8 @@ class Client:
     def Start(self):
         self.parent.World.add_object(self.players)
         self.login()
-        self.create_room("room1")
-        # self.join_room("room1", "0") # temp for testing
+        pwd = self.create_room()
+        # self.join_room("0") # temp for testing
     def login(self):
         try:
             self.tcp.connect((self.server_ip, 5000))
@@ -62,13 +62,25 @@ class Client:
             print("Login failed", e)
             raise
 
-    def create_room(self, room):
-        self.tcp.send(f"CREATE {room}".encode())
-        print(self.tcp.recv(128).decode())
+    def create_room(self):
+        self.tcp.send(b"CREATE")
+        response = self.tcp.recv(128).decode()
+        print(response)
+        # Extract password from response
+        if "password" in response:
+            pwd = response.split()[-1]
+            return pwd
+        return None
 
-    def join_room(self, room, pwd):
-        self.tcp.send(f"JOIN {room} {pwd}".encode())
-        print(self.tcp.recv(128).decode())
+    def join_room(self, pwd):
+        self.tcp.send(f"JOIN {pwd}".encode())
+        response = self.tcp.recv(128).decode()
+        print(response)
+        return response == "JOINED"
+
+    def Connect(self, room, username):
+        # Dummy method for UI
+        return True
 
     def send_input(self, keys, dx, dy, dt):
         mask = 0
@@ -223,8 +235,8 @@ if __name__ == "__main__":
     c = Client("Player1")
     c.login()
 
-    c.create_room("room1")
+    pwd = c.create_room()
     while True:
         c.send_ping()
-        time.sleep(1)
+        time.sleep(2)
 

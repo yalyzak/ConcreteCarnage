@@ -53,8 +53,8 @@ class ClientHelper:
 
     def Update(self, dt):
         # remove the player if they haven't been heard from in a while
-        if time.perf_counter() - self.last_seen() > 3:
-            print("logging out ", self.parent.name)
+        if time.perf_counter() - self.last_seen() > 5:
+            print("logging out ", self.parent.name, time.perf_counter() - self.last_seen())
             # use the client method in case extra cleanup is added later
             self._client.log_out()
 
@@ -82,8 +82,7 @@ class Client:
     def log_out(self):
         self.room.remove_client(self)
 class Room:
-    def __init__(self, name, password, room_manager):
-        self.name = name
+    def __init__(self, password, room_manager):
         self.password = password
         self.clients = []
         self.room_manager = room_manager
@@ -112,7 +111,7 @@ class Room:
             except Exception:
                 pass
             # remove from manager
-            self.room_manager.remove_room(self.name)
+            self.room_manager.remove_room(self.password)
     def broadcast(self, data, udp):
         """Send *data* to every client in the room.
 
@@ -135,44 +134,42 @@ class RoomManager:
     def generate_password(self):
         return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(6))
 
-    def create_room(self, name, owner):
+    def create_room(self, owner):
         with room_manager_lock:
-            if name in self.rooms:
-                return None
-
             pwd = self.generate_password()
             pwd = "0" # temp for testing
-            room = Room(name, pwd, room_manager)
+            if pwd in self.rooms:
+                return None
+
+            room = Room(pwd, room_manager)
             room.add_client(owner)  # auto join
-            self.rooms[name] = room
+            self.rooms[pwd] = room
 
             threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : TICK}, daemon=True).start()
 
             return pwd
 
-    def join_room(self, name, pwd, client):
+    def join_room(self, pwd, client):
         with room_manager_lock:
-            room = self.rooms.get(name)
+            room = self.rooms.get(pwd)
             if not room:
-                return False
-            if room.password != pwd:
                 return False
 
             room.add_client(client)
             return True
 
-    def remove_room(self, room_name):
+    def remove_room(self, room_password):
         with room_manager_lock:
-            room = self.rooms.get(room_name)
+            room = self.rooms.get(room_password)
             if not room:
                 return
 
-            print(f"Removing room: {room_name}")
+            print(f"Removing room: {room_password}")
 
             # Optional: stop game loop / cleanup
             # room.shutdown()  # if you implement one
 
-            del self.rooms[room_name]
+            del self.rooms[room_password]
 # =====================
 
 room_manager = RoomManager()
@@ -209,8 +206,7 @@ def tcp_thread(conn):
             cmd = data.split()
 
             if cmd[0] == "CREATE":
-                room = cmd[1]
-                pwd = room_manager.create_room(room, client)
+                pwd = room_manager.create_room(client)
 
                 if pwd:
                     conn.send(f"created a room with this password {pwd}".encode())
@@ -218,7 +214,7 @@ def tcp_thread(conn):
                     conn.send(b"EXISTS")
 
             elif cmd[0] == "JOIN":
-                ok = room_manager.join_room(cmd[1], cmd[2], client)
+                ok = room_manager.join_room(cmd[1], client)
                 conn.send(b"JOINED" if ok else b"FAILED")
 
         except Exception as e:
