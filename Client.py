@@ -4,6 +4,7 @@ import socket
 import struct
 import time
 import select
+import ssl
 
 from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
@@ -19,7 +20,10 @@ class Client:
 
         self.server_ip = ip
 
+        context = ssl.create_default_context()
+        context = ssl._create_unverified_context()
         self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp = context.wrap_socket(self.tcp, server_hostname="localhost")
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.udp.setblocking(False)

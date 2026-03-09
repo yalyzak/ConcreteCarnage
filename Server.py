@@ -5,6 +5,7 @@ import random
 import string
 import select
 from collections import deque
+import ssl
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
@@ -227,12 +228,16 @@ def tcp_thread(conn):
     conn.close()
 
 def tcp_server():
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, TCP_PORT))
     s.listen()
-
     while True:
         conn, _ = s.accept()
+
+        conn = context.wrap_socket(conn, server_side=True)
         threading.Thread(target=tcp_thread, args=(conn,)).start()
 
 # =====================
