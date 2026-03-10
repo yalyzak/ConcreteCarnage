@@ -9,7 +9,7 @@ import ssl
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
-from MAP import crateMAP
+from MAP import crateMAPServer as crateMAP
 from debug import debug, debug2
 from Shoot import Shoot
 from Player import ServerPlayer

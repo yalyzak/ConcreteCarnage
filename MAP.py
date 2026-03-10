@@ -131,7 +131,7 @@ def crateMAPServer():
     # MAIN FLOOR
     # ========================
 
-    ground = Object( size=Vector3(40,1,40) ).add_component([ BoxCollider(), Rigidbody(isKinematic=True), MeshRander(obj_path="models/destroyed_concrete_slab_with_reinforcement.glb") ])
+    ground = Object( size=Vector3(40,1,40) ).add_component([ BoxCollider(), Rigidbody(isKinematic=True)])
 
 
     # ========================
@@ -168,10 +168,9 @@ def crateMAPServer():
     # ========================
     # COVER BOXES (CS STYLE)
     # ========================
-    fence = MeshRander(obj_path="models/concrete_block_low_poly.glb")
     boxes = [
-        Object(position=Vector3(-10,1,10), size=Vector3(2,2,4)).add_component(fence),
-        Object(position=Vector3(-12,1,8), size=Vector3(2,2,4), rotation=Vector3(0,90,0)).add_component(fence),
+        Object(position=Vector3(-10,1,10), size=Vector3(2,2,4)),
+        Object(position=Vector3(-12,1,8), size=Vector3(2,2,4), rotation=Vector3(0,90,0)),
         Object(position=Vector3(10,1,-10), size=Vector3(2,2,2)),
         Object(position=Vector3(12,1,-8), size=Vector3(2,2,2)),
         Object(position=Vector3(0,1,15), size=Vector3(3,2,3)),
@@ -186,19 +185,18 @@ def crateMAPServer():
     # ========================
     # RAMPS (ELEVATION)
     # ========================
-    ramp = MeshRander(obj_path="models/ramp.glb")
 
     ramps = [
         Object(
             position=Vector3(-15,0.5,0),
             size=Vector3(10,1,10),
             rotation=Vector3(15,0,0)
-        ).add_component(ramp),
+        ),
         Object(
             position=Vector3(15,0.5,0),
             size=Vector3(10,1,10),
             rotation=Vector3(-15,0,0)
-        ).add_component(ramp)
+        )
     ]
 
     ramps = [
