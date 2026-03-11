@@ -63,7 +63,7 @@ class Client:
             raise
 
     def create_room(self):
-        self.tcp.send(b"CREATE")
+        self.tcp.send(b"CREATE") #
         response = self.tcp.recv(128).decode()
         print(response)
         # Extract password from response

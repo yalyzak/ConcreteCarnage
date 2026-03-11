@@ -9,7 +9,7 @@ import ssl
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
-from MAP import crateMAPServer as crateMAP
+from MAP import crateMAP
 from debug import debug, debug2
 from Shoot import Shoot
 from Player import ServerPlayer
@@ -142,6 +142,7 @@ class RoomManager:
                 return None
 
             room = Room(pwd, room_manager)
+            owner.last_seen = time.perf_counter()
             room.add_client(owner)  # auto join
             self.rooms[pwd] = room
 
@@ -155,6 +156,7 @@ class RoomManager:
             if not room:
                 return False
 
+            client.last_seen = time.perf_counter()
             room.add_client(client)
             return True
 
