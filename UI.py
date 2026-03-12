@@ -76,12 +76,12 @@ class HomeUI(UI):
     def Start(self):
         super().Start()
         self.setup_layout()
+        self.client.name = self.name_text.text
         self.client.login()
 
         # for comp in self.parent.components.values():
         #     comp.Active = False
         self.Active = True
-        self.client.name = self.name_text.text
 
     def setup_layout(self):
 
@@ -392,7 +392,7 @@ class PlayWithFriends(UI):
         self.parent.PlayUI.Active = True
 
     def joinRoom(self):
-        # self.client.join()
+        self.client.join_room(self.code_text.text)
         self.Active = False
         self.show = False
         self.render.flush_ui()

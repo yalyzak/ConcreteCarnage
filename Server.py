@@ -16,7 +16,7 @@ from Player import ServerPlayer
 
 import time
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, DEATH_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT
 
 
 HOST = "0.0.0.0"
@@ -32,8 +32,11 @@ room_manager_lock = threading.Lock()
 # =====================
 # OBJECTS
 # =====================
-def dead_message(cid):
-    return struct.pack(DEATH_FORMAT, PacketType.DEATH, cid)
+def despawn(cid):
+    return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
+
+def respawn(cid):
+    return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
 
 class ClientHelper:
     logout_deque = deque(maxlen=200)
@@ -236,6 +239,7 @@ def tcp_thread(conn):
                     client.game_object.Player.respawn()
                     client.room.Camera.add_child(client.game_object)
                     conn.send(b"respawned")
+                    client.room.broadcast(respawn(cid), udp)
                 else:
                     conn.send(b"FAILED")
 
@@ -243,6 +247,7 @@ def tcp_thread(conn):
                 if client.room:
                     client.game_object.destroy()
                     conn.send(b"despawned")
+                    client.room.broadcast(despawn(client.id), udp)
                 else:
                     conn.send(b"FAILED")
 
@@ -371,6 +376,7 @@ def udp_server():
                     for client in room.clients:
                         if not client.udp_addr:
                             continue
+
                         position = client.game_object.position
                         rotation = client.game_object.quaternion
                         velocity = client.game_object.Rigidbody.velocity
@@ -409,7 +415,7 @@ def udp_server():
                 try:
                     client = logout_queue.pop()
                     room = client.room
-                    room.broadcast(dead_message(client.id), udp)
+                    room.broadcast(despawn(client.id), udp)
                     client.log_out()
                 except Exception as e:
                     print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)

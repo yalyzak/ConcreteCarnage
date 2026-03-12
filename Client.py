@@ -8,7 +8,7 @@ import ssl
 
 from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, DEATH_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT
 
 from Player import GamePlayer
 
@@ -228,7 +228,7 @@ class Client:
                 if player:
                     player.position = server_pos
                     player.Rigidbody.velocity = server_vel
-                else:
+                else: # tobe removed
                     self.players.add_child(self.game_object(player_id, server_pos, server_vel))
                     print("new player joined")
 
@@ -240,18 +240,28 @@ class Client:
                 return
             self.parent.Player.set_hp(hp)
 
-        elif ptype == PacketType.DEATH:
+        elif ptype == PacketType.DESPAWN:
              try:
-                player_id = struct.unpack(DEATH_FORMAT, data)[1]
+                player_id = struct.unpack(SPAWN_FORMAT, data)[1]
                 if player_id == self.id:
-                    self.parent.Player.Death()
+                    self.parent.Player.despawn()
                 else:
                     player = self.players.search(player_id)
                     if player:
-                        player.Player.Death()
+                        player.Player.despawn()
              except:
                  print("Bad death packet")
-
+        elif ptype == PacketType.RESPAWN:
+            try:
+                player_id = struct.unpack(SPAWN_FORMAT, data)[1]
+                if player_id == self.id:
+                    self.parent.Player.respawn()
+                else:
+                    player = self.players.search(player_id)
+                    if player:
+                        player.Player.respawn()
+            except:
+                print("Bad death packet")
         else:
             print("Unknown packet", ptype)
 

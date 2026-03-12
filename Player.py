@@ -1,7 +1,7 @@
 import struct
 import random
 
-from protocol import PacketType, DAMAGE_FORMAT, DEATH_FORMAT
+from protocol import PacketType, DAMAGE_FORMAT, SPAWN_FORMAT
 from bereshit import Text, Vector3, Quaternion
 
 
@@ -28,6 +28,11 @@ class Player:
     def respawn(self):
         self.parent.position = Vector3(random.randint(0, 20), 1, random.randint(0, 20))
         self.parent.quaternion *= Quaternion()
+        self.parent.size = Vector3(1,1,1)
+
+    def despawn(self):
+        self.parent.size = Vector3(0,0,0)
+        # self.parent.destroy()
 
 class GamePlayer(Player):
     def set_hp(self, hp):

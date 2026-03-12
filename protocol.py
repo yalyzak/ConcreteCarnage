@@ -7,7 +7,8 @@ class PacketType(IntEnum):
     PONG = 3
     STATE = 4
     DAMAGE = 5
-    DEATH = 6
+    RESPAWN = 6
+    DESPAWN = 7
 
 # struct formats for packets
 
@@ -16,6 +17,6 @@ PING_FORMAT = "!BId"            # type, id, timestamp
 PONG_FORMAT = "!Bd"             # type, timestamp
 STATE_FORMAT = "!BI10f"         # type + id + 10 floats: id, pos(3), quat(4), vel(3)
 DAMAGE_FORMAT = "!B1f"          # type + HP
-DEATH_FORMAT = "!BI"             # type + id
+SPAWN_FORMAT = "!BI"             # type + id
 
 TICK = 1/30
