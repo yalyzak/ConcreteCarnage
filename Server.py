@@ -9,7 +9,7 @@ import ssl
 
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
 from Movement import PlayerController, ServerController
-from MAP import crateMAP
+from MAP import crateMAPServer as crateMAP
 from debug import debug, debug2
 from Shoot import Shoot
 from Player import ServerPlayer
@@ -60,7 +60,7 @@ class ClientHelper:
 
 
 def game_object(name, client):
-    return Object(name=name, position=Vector3(5, 1, random.randint(0, 20))).add_component(
+    return Object(name=name, position=Vector3(1, 1, 1)).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0)),
@@ -93,13 +93,14 @@ class Room:
     def add_client(self, client):
         if client not in self.clients:
             self.clients.append(client)
-            self.Camera.add_child(client.game_object)
+            # self.Camera.add_child(client.game_object)
             client.room = self
 
     def remove_client(self, client):
         if client in self.clients:
             self.clients.remove(client)
-            client.game_object.destroy()
+            if client.game_object:
+                client.game_object.destroy()
 
             # Clear the client's room reference
             client.room = None
@@ -209,7 +210,7 @@ def tcp_thread(conn):
 
             if cmd[0] == "CREATE":
                 pwd = room_manager.create_room(client)
-
+                client.last_seen = time.perf_counter()
                 if pwd:
                     conn.send(f"created a room with this password {pwd}".encode())
                 else:
@@ -218,7 +219,39 @@ def tcp_thread(conn):
             elif cmd[0] == "JOIN":
                 ok = room_manager.join_room(cmd[1], client)
                 conn.send(b"JOINED" if ok else b"FAILED")
+            elif cmd[0] == "logout":
+                with clients_lock:
+                    if cid in clients:
+                        # del clients[cid]
+                        clients[cid].log_out()
 
+                conn.send(b"LOGGED_OUT")
+                conn.close()
+                break
+
+            elif cmd[0] == "respawn":
+                if client.room:
+                    client.game_object.ServerController.total_pitch = 0
+                    client.game_object.ServerController.total_yaw = 0
+                    client.game_object.Player.respawn()
+                    client.room.Camera.add_child(client.game_object)
+                    conn.send(b"respawned")
+                else:
+                    conn.send(b"FAILED")
+
+            elif cmd[0] == "despawn":
+                if client.room:
+                    client.game_object.destroy()
+                    conn.send(b"despawned")
+                else:
+                    conn.send(b"FAILED")
+
+            elif cmd[0] == "leave":
+                if client.room:
+                    client.log_out()
+                    conn.send(b"left")
+                else:
+                    conn.send(b"FAILED")
         except Exception as e:
             print("TCP thread error for client", client.username, e)
             break

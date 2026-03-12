@@ -6,6 +6,7 @@ from protocol import TICK
 from debug import debug, debug2
 from Shoot import Shoot
 from Player import GamePlayer
+from UI import HomeUI, PlayWithFriends, PlayUI, GameUI
 # PLAYER
 player = Object(
     name="player",
@@ -13,11 +14,15 @@ player = Object(
 ).add_component([
     BoxCollider(),
     Rigidbody(Freeze_Rotation=Vector3(1,1,1), useGravity=True),
-    PlayerController(),
     Camera(shading="material preview"),
+    HomeUI(),
+    PlayWithFriends(),
+    PlayUI(),
+    GameUI(),
+    PlayerController(),
     Client("Player1",), #"192.168.1.163"
     Shoot(),
-    GamePlayer()
+    GamePlayer(),
 ])
 
 enemy = Object(

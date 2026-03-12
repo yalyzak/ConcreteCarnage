@@ -1,6 +1,8 @@
 import struct
+import random
+
 from protocol import PacketType, DAMAGE_FORMAT, DEATH_FORMAT
-from bereshit import Text
+from bereshit import Text, Vector3, Quaternion
 
 
 class Player:
@@ -16,12 +18,16 @@ class Player:
         self._HP_Text.text = str(self._HP)
 
     def Start(self):
-        self.render = self.parent.World.Camera.Camera.render
-        self.render.add_text_rect(self._HP_Text)
+        # self.render = self.parent.World.Camera.Camera.render
+        # self.render.add_text_rect(self._HP_Text)
+        self.Active = False
 
     def attach(self, _):
         return "Player"
 
+    def respawn(self):
+        self.parent.position = Vector3(random.randint(0, 20), 1, random.randint(0, 20))
+        self.parent.quaternion *= Quaternion()
 
 class GamePlayer(Player):
     def set_hp(self, hp):

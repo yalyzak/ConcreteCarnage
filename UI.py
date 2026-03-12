@@ -52,6 +52,7 @@ class UI:
 
     def get_pressed_keys(self, text):
         start = time.perf_counter()
+        text.text = ""
         self.render.text_input = -1
         while True:
             time.sleep(0.01)
@@ -75,13 +76,15 @@ class HomeUI(UI):
     def Start(self):
         super().Start()
         self.setup_layout()
-        self.client.logout()
+        self.client.login()
+
         # for comp in self.parent.components.values():
         #     comp.Active = False
         self.Active = True
         self.client.name = self.name_text.text
 
     def setup_layout(self):
+
         # Background
         self.background = Box(center=(960, 540), size=(1920, 1080), color=(41, 128, 185), opacity=1, layer=0)
         self.render.add_ui_rect(self.background)
@@ -163,7 +166,7 @@ class HomeUI(UI):
 
     def ButtonClicked(self, button):
         if button == self.play_button:
-            self.client.room = self.client.find_random_room()
+            # self.client.room = self.client.find_random_room()
             self.activatePlaylayout()
         elif button == self.friends_button:
             self.activateFriendslayout()
@@ -175,7 +178,7 @@ class HomeUI(UI):
         elif button == self.exit_button:
             self.parent.World.Exit()
             self.parent.destroy()
-
+            self.client.logout()
 
     def activatePlaylayout(self):
         self.Active = False
@@ -373,13 +376,15 @@ class PlayWithFriends(UI):
         elif button == self.code_box:
             self.EnterCode()
         elif button == self.join_button:
+            self.client.login()
             self.joinRoom()
         elif button == self.create_button:
+            self.client.login()
             self.CreatRoom()
 
 
     def CreatRoom(self):
-        # self.client.create_room()
+        self.client.create_room()
         self.Active = False
         self.show = False
         self.render.flush_ui()
@@ -404,12 +409,14 @@ class PlayWithFriends(UI):
         self.parent.HomeUI.Active = True
 
 class PlayUI(UI):
+    def __init__(self):
+        super(PlayUI, self).__init__()
+        self.joined = False
+
     def Start(self):
         super().Start()
-        # self.client.login()
 
     def setup_layout(self):
-
         # Dark overlay background
         self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.6, layer=5)
         # self.render.add_ui_rect(self.background)
@@ -530,7 +537,7 @@ class PlayUI(UI):
             if self.get_pressed_keys(self.chat_input):
                 if chat_filter.is_message_clean(self.chat_input.text):
                     self.add_chat_message()
-                    self.client.send_massage(self.chat_input.text)
+                    # self.client.send_massage(self.chat_input.text)
                 else:
                     self.chat_input.text = "*" * len(self.chat_input.text)
                     self.add_chat_message()
@@ -550,6 +557,8 @@ class PlayUI(UI):
         self.show = False
         self.render.flush_ui()
         self.parent.HomeUI.Active = True
+        self.client.logout()
+
 
     def activateGamelayout(self):
         self.Active = False
@@ -557,6 +566,9 @@ class PlayUI(UI):
         self.render.flush_ui()
         self.parent.GameUI.Active = True
         self.parent.PlayerController.Active = True
+        self.client.Active = True
+        self.client.respawn()
+
 
 class GameUI(UI):
 
@@ -569,4 +581,5 @@ class GameUI(UI):
                 self.show = False
                 self.parent.PlayerController.Active = False
                 self.parent.PlayUI.Active = True
+                self.client.despawn()
             self.render.text_input = -1

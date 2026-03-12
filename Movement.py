@@ -39,7 +39,6 @@ class Controller:
             forward = Vector3(forward.x, 0, forward.z).normalized()
 
             self.parent.Rigidbody.velocity += forward * self.force_amount * dt
-
         if keys[1]:
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
             backward = Vector3(backward.x, 0, backward.z).normalized()
@@ -98,6 +97,7 @@ class PlayerController(Controller):
 
     def Start(self):
         mouse.move(CENTER_X, CENTER_Y)
+        self.Active = False
 
     def Update(self, dt):
         x, y = self.mouse_recorder()

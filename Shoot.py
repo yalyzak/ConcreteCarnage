@@ -38,7 +38,8 @@ class Shoot:
                         # hit.collider.parent.Rigidbody.AddForce(forward * self.force)
     def Start(self):
         self.render = self.parent.World.Camera.Camera.render
-        self.render.add_text_rect(self.shots_text)
+        # self.render.add_text_rect(self.shots_text)
+        self.Active = False
 
     def Update(self, dt):
         self.timer += dt

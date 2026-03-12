@@ -17,13 +17,13 @@ class Client:
     def __init__(self, name, ip = "127.0.0.1"):
         self.name = name
         self.id = None
-
+        self.logged_in = False
         self.server_ip = ip
 
         context = ssl.create_default_context()
-        context = ssl._create_unverified_context()
-        self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.tcp = context.wrap_socket(self.tcp, server_hostname="localhost")
+        self.context = ssl._create_unverified_context()
+
+        self.tcp = self.connect()
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.udp.setblocking(False)
@@ -36,6 +36,11 @@ class Client:
     def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue
 
+    def connect(self):
+        raw = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp = self.context.wrap_socket(raw, server_hostname="localhost")
+        return tcp
+
     def Update(self, dt):
         if self.input:
             bools, dx, dy = self.input.popleft()
@@ -47,20 +52,39 @@ class Client:
         self.receive_input()
     def Start(self):
         self.parent.World.add_object(self.players)
-        self.login()
-        pwd = self.create_room()
+        self.Active = False
+        # self.login()
+        # pwd = self.create_room()
         # self.join_room("0") # temp for testing
     def login(self):
-        try:
-            self.tcp.connect((self.server_ip, 5000))
-            self.tcp.send(self.name.encode())
+        if not self.logged_in:
+            try:
+                self.tcp = self.connect()
+                self.tcp.connect((self.server_ip, 5000))
+                self.tcp.send(self.name.encode())
 
-            msg = self.tcp.recv(128).decode()
-            self.id = int(msg.split()[1])
-            print("id", self.id)
-        except Exception as e:
-            print("Login failed", e)
-            raise
+                msg = self.tcp.recv(128).decode()
+                self.id = int(msg.split()[1])
+                print("id", self.id)
+                self.logged_in = True
+            except Exception as e:
+                print("Login failed", e)
+                raise
+
+    def logout(self):
+        if self.logged_in:
+            try:
+                # Optional: notify the server that this client is logging out
+                self.tcp.send(b"logout")
+                response = self.tcp.recv(128).decode()
+
+                # Close the socket
+                self.tcp.close()
+
+                print(response)
+                self.logged_in = False
+            except Exception as e:
+                print("Logout failed:", e)
 
     def create_room(self):
         self.tcp.send(b"CREATE") #
@@ -72,6 +96,38 @@ class Client:
             return pwd
         return None
 
+    def respawn(self):
+        self.tcp.send(b"respawn")
+        self.parent.PlayerController.total_yaw = 0
+        self.parent.PlayerController.total_pitch = 0
+        self.parent.Player.respawn()
+        response = self.tcp.recv(128).decode()
+        print(response)
+        # Extract password from response
+        if "password" in response:
+            pwd = response.split()[-1]
+            return pwd
+        return None
+
+    def leave_room(self):
+        self.tcp.send(b"leave")
+        response = self.tcp.recv(128).decode()
+        print(response)
+        # Extract password from response
+        if "password" in response:
+            pwd = response.split()[-1]
+            return pwd
+        return None
+
+    def despawn(self):
+        self.tcp.send(b"despawn")
+        response = self.tcp.recv(128).decode()
+        print(response)
+        # Extract password from response
+        if "password" in response:
+            pwd = response.split()[-1]
+            return pwd
+        return None
     def join_room(self, pwd):
         self.tcp.send(f"JOIN {pwd}".encode())
         response = self.tcp.recv(128).decode()
@@ -234,9 +290,23 @@ class Client:
 if __name__ == "__main__":
     c = Client("Player1")
     c.login()
-
     pwd = c.create_room()
-    while True:
+    time.sleep(1)
+    # c.join_room(pwd)
+    c.respawn()
+    start = time.perf_counter()
+    for i in range(5):
         c.send_ping()
-        time.sleep(2)
+        time.sleep(1)
+    c.despawn()
+    c.logout()
+    # c.send_ping()
+    # time.sleep(1)
+    # c.logout()
+    # time.sleep(1)
+    # c.login()
+    # pwd = c.create_room()
+    # while True:
+    #     c.send_ping()
+    #     time.sleep(2)
 
