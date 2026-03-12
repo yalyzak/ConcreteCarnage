@@ -166,7 +166,6 @@ class HomeUI(UI):
 
     def ButtonClicked(self, button):
         if button == self.play_button:
-            # self.client.room = self.client.find_random_room()
             self.activatePlaylayout()
         elif button == self.friends_button:
             self.activateFriendslayout()
@@ -181,6 +180,8 @@ class HomeUI(UI):
             self.client.logout()
 
     def activatePlaylayout(self):
+        pwd = self.client.find_room()
+        self.client.join_room(pwd)
         self.Active = False
         self.render.flush_ui()
         self.show = False

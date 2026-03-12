@@ -20,7 +20,7 @@ player = Object(
     PlayUI(),
     GameUI(),
     PlayerController(),
-    Client("Player1",), #"192.168.1.163"
+    Client(), #"192.168.1.163"
     Shoot(),
     GamePlayer(),
 ])

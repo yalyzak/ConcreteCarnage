@@ -14,7 +14,7 @@ from Player import GamePlayer
 
 class Client:
 
-    def __init__(self, name, ip = "127.0.0.1"):
+    def __init__(self, name="", ip = "127.0.0.1"):
         self.name = name
         self.id = None
         self.logged_in = False
@@ -96,11 +96,19 @@ class Client:
             return pwd
         return None
 
-    def respawn(self):
-        self.tcp.send(b"respawn")
-        self.parent.PlayerController.total_yaw = 0
-        self.parent.PlayerController.total_pitch = 0
-        self.parent.Player.respawn()
+    def join_room(self, pwd):
+        self.tcp.send(f"JOIN {pwd}".encode())
+        response = self.tcp.recv(128).decode()
+        print(response)
+        return response == "JOINED"
+
+    def find_room(self):
+        self.tcp.send(b"find_room")
+        response = int(self.tcp.recv(128).decode())
+        return response
+
+    def leave_room(self):
+        self.tcp.send(b"leave")
         response = self.tcp.recv(128).decode()
         print(response)
         # Extract password from response
@@ -109,8 +117,11 @@ class Client:
             return pwd
         return None
 
-    def leave_room(self):
-        self.tcp.send(b"leave")
+    def respawn(self):
+        self.tcp.send(b"respawn")
+        self.parent.PlayerController.total_yaw = 0
+        self.parent.PlayerController.total_pitch = 0
+        self.parent.Player.respawn()
         response = self.tcp.recv(128).decode()
         print(response)
         # Extract password from response
@@ -128,15 +139,6 @@ class Client:
             pwd = response.split()[-1]
             return pwd
         return None
-    def join_room(self, pwd):
-        self.tcp.send(f"JOIN {pwd}".encode())
-        response = self.tcp.recv(128).decode()
-        print(response)
-        return response == "JOINED"
-
-    def Connect(self, room, username):
-        # Dummy method for UI
-        return True
 
     def send_input(self, keys, dx, dy, dt):
         mask = 0
@@ -155,6 +157,7 @@ class Client:
         )
 
         self.udp.sendto(packet, (self.server_ip, 5001))
+
     @staticmethod
     def game_object(player_id, server_pos, server_vel):
          return Object(name=player_id, position=server_pos).add_component(

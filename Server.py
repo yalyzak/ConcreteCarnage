@@ -116,6 +116,9 @@ class Room:
                 pass
             # remove from manager
             self.room_manager.remove_room(self.password)
+
+
+
     def broadcast(self, data, udp):
         """Send *data* to every client in the room.
 
@@ -138,21 +141,26 @@ class RoomManager:
     def generate_password(self):
         return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(6))
 
-    def create_room(self, owner):
+    def create_room(self, owner=None, pwd=None):
         with room_manager_lock:
-            pwd = self.generate_password()
-            pwd = "0" # temp for testing
+            if not pwd:
+                pwd = self.generate_password()
+            # pwd = "0" # temp for testing
+
             if pwd in self.rooms:
                 return None
 
             room = Room(pwd, room_manager)
-            owner.last_seen = time.perf_counter()
-            room.add_client(owner)  # auto join
             self.rooms[pwd] = room
+            if owner:
+                owner.last_seen = time.perf_counter()
+                room.add_client(owner)  # auto join
 
-            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": True, "tick" : TICK}, daemon=True).start()
+
+            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": False, "tick": TICK}, daemon=True).start()
 
             return pwd
+
 
     def join_room(self, pwd, client):
         with room_manager_lock:
@@ -222,6 +230,10 @@ def tcp_thread(conn):
             elif cmd[0] == "JOIN":
                 ok = room_manager.join_room(cmd[1], client)
                 conn.send(b"JOINED" if ok else b"FAILED")
+
+            elif cmd[0] == "find_room":
+                conn.send(b"1")
+
             elif cmd[0] == "logout":
                 with clients_lock:
                     if cid in clients:
@@ -234,6 +246,7 @@ def tcp_thread(conn):
 
             elif cmd[0] == "respawn":
                 if client.room:
+                    client.last_seen = time.perf_counter()
                     client.game_object.ServerController.total_pitch = 0
                     client.game_object.ServerController.total_yaw = 0
                     client.game_object.Player.respawn()
@@ -270,11 +283,17 @@ def tcp_server():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind((HOST, TCP_PORT))
     s.listen()
+    create_play_rooms(1)
     while True:
         conn, _ = s.accept()
 
         conn = context.wrap_socket(conn, server_side=True)
         threading.Thread(target=tcp_thread, args=(conn,)).start()
+
+
+def create_play_rooms(num):
+    for i in range(num):
+        room_manager.create_room(pwd=str(i+1))
 
 # =====================
 # UDP
