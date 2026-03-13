@@ -53,6 +53,7 @@ class Client:
                 self.send_ping()
 
         self.receive_input()
+        self.receive_chat()
     def Start(self):
         self.parent.World.add_object(self.players)
         self.Active = False

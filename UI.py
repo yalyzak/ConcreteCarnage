@@ -180,6 +180,7 @@ class HomeUI(UI):
             self.client.logout()
 
     def activatePlaylayout(self):
+        self.client.login()
         pwd = self.client.find_room()
         self.client.join_room(pwd)
         self.Active = False
@@ -413,7 +414,7 @@ class PlayUI(UI):
     def __init__(self):
         super(PlayUI, self).__init__()
         self.joined = False
-
+        self.chat_log = []
     def Start(self):
         super().Start()
 
@@ -520,7 +521,7 @@ class PlayUI(UI):
         self.render.add_text_rect(self.chat_input)
 
         # Chat storage
-        self.chat_log = []
+        self.load_chat_from_log()
         self.current_input = ""
 
         # Button tracking for hover
@@ -579,6 +580,9 @@ class PlayUI(UI):
         if msg:
             self.add_chat_message(msg)
 
+    def load_chat_from_log(self):
+        if hasattr(self, "chat_messages"):
+            self.chat_messages.text = "\n".join(self.chat_log)
 class GameUI(UI):
 
     def Update(self, dt):
