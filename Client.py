@@ -5,6 +5,7 @@ import struct
 import time
 import select
 import ssl
+from collections import deque
 
 from bereshit import Vector3, Object, BoxCollider, Rigidbody
 
@@ -36,6 +37,9 @@ class Client:
         self.wait = False
 
         self.players = Object(size=Vector3(0,0,0), name="players")
+
+        self.chat_queue = deque(maxlen=6)
+
     def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue
 
@@ -53,7 +57,9 @@ class Client:
                 self.send_ping()
 
         self.receive_input()
-        self.receive_chat()
+        msg = self.receive_chat()
+        if msg:
+            self.chat_queue.append(msg)
     def Start(self):
         self.parent.World.add_object(self.players)
         self.Active = False

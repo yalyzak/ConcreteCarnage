@@ -583,6 +583,8 @@ class PlayUI(UI):
     def load_chat_from_log(self):
         if hasattr(self, "chat_messages"):
             self.chat_messages.text = "\n".join(self.chat_log)
+        while self.client.chat_queue:
+            self.add_chat_message(self.client.chat_queue.popleft())
 class GameUI(UI):
 
     def Update(self, dt):
