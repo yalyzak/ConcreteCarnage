@@ -306,7 +306,7 @@ class Client:
                 print("TCP closed")
                 return
 
-            print(data.decode())
+            return data.decode()
 
         except BlockingIOError:
             pass

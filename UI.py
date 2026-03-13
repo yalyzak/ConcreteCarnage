@@ -538,17 +538,18 @@ class PlayUI(UI):
             if self.get_pressed_keys(self.chat_input):
                 if chat_filter.is_message_clean(self.chat_input.text):
                     self.client.send_chat(self.chat_input.text)
-                    self.add_chat_message()
+                    self.add_chat_message(self.chat_input.text)
                     # self.client.send_massage(self.chat_input.text)
+                    self.chat_input.text = ""
+
                 else:
                     self.chat_input.text = "*" * len(self.chat_input.text)
                     self.client.send_chat(self.chat_input.text)
-                    self.add_chat_message()
+                    self.add_chat_message(self.chat_input.text)
+                    self.chat_input.text = ""
 
-
-    def add_chat_message(self):
-        self.chat_log.append(self.chat_input.text)
-        self.chat_input.text = ""
+    def add_chat_message(self, text):
+        self.chat_log.append(text)
 
         # Keep last 6 messages
         self.chat_log = self.chat_log[-6:]
@@ -574,7 +575,9 @@ class PlayUI(UI):
 
     def Update(self, dt):
         super(PlayUI, self).Update(dt)
-        self.client.receive_chat()
+        msg = self.client.receive_chat()
+        if msg:
+            self.add_chat_message(msg)
 
 class GameUI(UI):
 

@@ -275,10 +275,11 @@ def tcp_thread(conn):
             elif cmd[0] == "CHAT":
                 msg = cmd[1]
                 for c in client.room.clients:
-                    try:
-                        c.tcp_addr.sendall(msg.encode())
-                    except Exception as e:
-                       print(f"could not send msg {e}")
+                    if c != client:
+                        try:
+                            c.tcp_addr.sendall(msg.encode())
+                        except Exception as e:
+                           print(f"could not send msg {e}")
         except Exception as e:
             print("TCP thread error for client", client.username, e)
             break
