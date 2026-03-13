@@ -74,7 +74,7 @@ class Client:
             except Exception as e:
                 print("Login failed", e)
                 raise
-
+#
     def logout(self):
         if self.logged_in:
             try:

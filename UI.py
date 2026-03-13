@@ -180,7 +180,7 @@ class HomeUI(UI):
             self.client.logout()
 
     def activatePlaylayout(self):
-        self.client.login()
+        self.client.login()#
         pwd = self.client.find_room()
         self.client.join_room(pwd)
         self.Active = False
