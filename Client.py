@@ -29,6 +29,9 @@ class Client:
         self.udp.setblocking(False)
         self.udp.settimeout(0.002)  # seconds
 
+        self.tcp.setblocking(False)
+        self.tcp.settimeout(0.002)
+
         self.last_ping_time = 0
         self.wait = False
 
@@ -139,6 +142,9 @@ class Client:
             pwd = response.split()[-1]
             return pwd
         return None
+
+    def send_chat(self, msg):
+        self.tcp.send(f"CHAT {msg}".encode())
 
     def send_input(self, keys, dx, dy, dt):
         mask = 0
@@ -284,6 +290,26 @@ class Client:
                 # print("UDP receive error", e)
                 break
 
+    def receive_chat(self):
+
+        if not self.logged_in:
+            return
+
+        try:
+            ready, _, _ = select.select([self.tcp], [], [], 0)
+            if not ready:
+                return
+
+            data = self.tcp.recv(1024)
+
+            if not data:
+                print("TCP closed")
+                return
+
+            print(data.decode())
+
+        except BlockingIOError:
+            pass
     def send_ping(self):
         now = time.perf_counter()
         self.wait = True
@@ -306,12 +332,16 @@ if __name__ == "__main__":
     pwd = c.create_room()
     time.sleep(1)
     # c.join_room(pwd)
-    c.respawn()
+    # c.respawn()
     start = time.perf_counter()
-    for i in range(5):
-        c.send_ping()
-        time.sleep(1)
-    c.despawn()
+    c.send_chat("gg")
+    while True:
+        c.receive_chat()
+
+    # for i in range(5):
+    #     c.send_ping()
+    #     time.sleep(1)
+    # c.despawn()
     c.logout()
     # c.send_ping()
     # time.sleep(1)

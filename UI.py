@@ -537,12 +537,14 @@ class PlayUI(UI):
         elif button == self.chat_input_box:
             if self.get_pressed_keys(self.chat_input):
                 if chat_filter.is_message_clean(self.chat_input.text):
+                    self.client.send_chat(self.chat_input.text)
                     self.add_chat_message()
                     # self.client.send_massage(self.chat_input.text)
                 else:
                     self.chat_input.text = "*" * len(self.chat_input.text)
+                    self.client.send_chat(self.chat_input.text)
                     self.add_chat_message()
-                    self.client.send_massage(self.chat_input.text)
+
 
     def add_chat_message(self):
         self.chat_log.append(self.chat_input.text)
@@ -570,6 +572,9 @@ class PlayUI(UI):
         self.client.Active = True
         self.client.respawn()
 
+    def Update(self, dt):
+        super(PlayUI, self).Update(dt)
+        self.client.receive_chat()
 
 class GameUI(UI):
 

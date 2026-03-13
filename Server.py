@@ -73,11 +73,12 @@ def game_object(name, client):
             ServerPlayer()
         ])
 class Client:
-    def __init__(self, cid, username):
+    def __init__(self, cid, username, tcp_addr):
         self.id = cid
         self.username = username
         self.room = None
         self.udp_addr = None
+        self.tcp_addr = tcp_addr
         self.game_object = game_object(username, self)
         self.last_seen = time.perf_counter()
         self.ServerController = self.game_object.ServerController
@@ -206,7 +207,7 @@ def tcp_thread(conn):
     with clients_lock:
         cid = next_id
         next_id += 1
-        client = Client(cid, username)
+        client = Client(cid, username, conn)
         clients[cid] = client
 
     conn.send(f"LOGIN {cid}".encode())
@@ -270,6 +271,14 @@ def tcp_thread(conn):
                     conn.send(b"left")
                 else:
                     conn.send(b"FAILED")
+
+            elif cmd[0] == "CHAT":
+                msg = cmd[1]
+                for c in client.room.clients:
+                    try:
+                        c.tcp_addr.sendall(msg.encode())
+                    except Exception as e:
+                       print(f"could not send msg {e}")
         except Exception as e:
             print("TCP thread error for client", client.username, e)
             break
@@ -280,15 +289,15 @@ def tcp_server():
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile="server.crt", keyfile="server.key")
 
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind((HOST, TCP_PORT))
-    s.listen()
+    tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_sock.bind((HOST, TCP_PORT))
+    tcp_sock.listen()
     create_play_rooms(1)
     while True:
-        conn, _ = s.accept()
+        conn, _ = tcp_sock.accept()
 
         conn = context.wrap_socket(conn, server_side=True)
-        threading.Thread(target=tcp_thread, args=(conn,)).start()
+        threading.Thread(target=tcp_thread, args=(conn, )).start()
 
 
 def create_play_rooms(num):
