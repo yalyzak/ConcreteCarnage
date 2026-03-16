@@ -77,7 +77,6 @@ class HomeUI(UI):
         super().Start()
         self.setup_layout()
         self.client.name = self.name_text.text
-        self.client.login()
 
         # for comp in self.parent.components.values():
         #     comp.Active = False
@@ -86,7 +85,7 @@ class HomeUI(UI):
     def setup_layout(self):
 
         # Background
-        self.background = Box(center=(960, 540), size=(1920, 1080), color=(41, 128, 185), opacity=1, layer=0)
+        self.background = Box(center=(960, 540), size=(1920, 1080), layer=0, texture="C:\\Users\\yaly\\PycharmProjects\\game\\models\\carnagetexture.jpg")
         self.render.add_ui_rect(self.background)
 
         # Title
@@ -195,7 +194,7 @@ class HomeUI(UI):
 
 class PlayWithFriends(UI):
     def setup_layout(self):
-        self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.5, layer=3)
+        self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.5, layer=3, texture="")
         self.render.add_ui_rect(self.background)
 
         # Main popup background
@@ -587,14 +586,40 @@ class PlayUI(UI):
             self.add_chat_message(self.client.chat_queue.popleft())
 class GameUI(UI):
 
+    def setup_layout(self):
+        self.render.hide_cursor()
+        self.parent.Shoot.Active = True
+        self.show = True
+        self.shots_text = Text(str(self.parent.Shoot.shots), center=(120, 850), scale=1)
+        self.render.add_text_rect(self.shots_text)
+        self.muzzle_blast_time = time.perf_counter()
+        self.muzzle_blast = Box(texture="C:\\Users\\yaly\\PycharmProjects\\game\\models\\muzzle_flash.png", opacity=0)
+        self.render.add_ui_rect(self.muzzle_blast)
+
     def Update(self, dt):
         super().Update(dt)
         key = self.render.text_input
+        if time.perf_counter() - self.muzzle_blast_time > 0.1:
+            self.muzzle_blast.opacity = 0
         if key != -1:
             if key == 256:
+                self.render.flush_ui()
                 self.Active = False
                 self.show = False
                 self.parent.PlayerController.Active = False
                 self.parent.PlayUI.Active = True
+                self.parent.Shoot.Active = False
+                self.parent.Shoot.reload()
                 self.client.despawn()
+                self.render.show_cursor()
+
             self.render.text_input = -1
+
+
+    def update_shots(self, shots):
+        self.shots_text.text = str(shots)
+        self.muzzle_blast.opacity = 1
+        self.muzzle_blast_time = time.perf_counter()
+
+    def update_hp(self):
+        pass

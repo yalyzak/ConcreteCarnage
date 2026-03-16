@@ -1,7 +1,7 @@
 from Client import Client
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core, Quaternion
 from Movement import PlayerController
-from MAP import crateMAPServer as crateMAP
+from MAP import crateMAPClient as crateMAP
 from protocol import TICK
 from debug import debug, debug2
 from Shoot import Shoot
