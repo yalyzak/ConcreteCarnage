@@ -6,7 +6,7 @@ from bereshit.render import Text,Box
 
 import copy
 class Shoot:
-    def __init__(self):
+    def __init__(self, ui):
         self.CoolDown = 0.1   # seconds between shots
         self.timer = 0.0      # time passed since last shot
         self.speed = 10
@@ -15,6 +15,7 @@ class Shoot:
         self.MaxShoots = 10
         # self.gimos = Object(position=Vector3(1000,1000,1000),size=Vector3(.1,.1,.1))
         self.Damage = 50
+        self.ui = ui
 
     def onClick(self):
         if self.shots <= 0:
@@ -24,7 +25,8 @@ class Shoot:
             self.shots -= 1
             self.timer = 0
 
-            self.parent.GameUI.update_shots(self.shots)
+            if self.ui:
+                self.parent.GameUI.update_shots(self.shots)
 
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
             hits = Physics.RaycastAll(self.parent.position.to_np(), forward.to_np(), self.parent.World)
@@ -45,4 +47,5 @@ class Shoot:
         self.shots = self.MaxShoots
         self.timer = 0
 
-        self.parent.GameUI.update_shots(self.shots)
+        if self.ui:
+            self.parent.GameUI.update_shots(self.shots)
