@@ -69,7 +69,7 @@ def game_object(name, client):
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0)),
             ServerController(),
             ClientHelper(client),
-            Shoot(),
+            Shoot(False),
             ServerPlayer()
         ])
 class Client:

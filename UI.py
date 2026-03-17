@@ -85,7 +85,7 @@ class HomeUI(UI):
     def setup_layout(self):
 
         # Background
-        self.background = Box(center=(960, 540), size=(1920, 1080), layer=0, texture="C:\\Users\\yaly\\PycharmProjects\\game\\models\\carnagetexture.jpg")
+        self.background = Box(center=(960, 540), size=(1920, 1080), layer=0, texture="models/carnagetexture.jpg")
         self.render.add_ui_rect(self.background)
 
         # Title
@@ -593,7 +593,7 @@ class GameUI(UI):
         self.shots_text = Text(str(self.parent.Shoot.shots), center=(120, 850), scale=1)
         self.render.add_text_rect(self.shots_text)
         self.muzzle_blast_time = time.perf_counter()
-        self.muzzle_blast = Box(texture="C:\\Users\\yaly\\PycharmProjects\\game\\models\\muzzle_flash.png", opacity=0)
+        self.muzzle_blast = Box(texture="models/muzzle_flash.png", opacity=0)
         self.render.add_ui_rect(self.muzzle_blast)
 
     def Update(self, dt):
