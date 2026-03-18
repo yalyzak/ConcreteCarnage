@@ -108,11 +108,12 @@ class Room:
 
             # Clear the client's room reference
             client.room = None
-        if not self.clients:
+        if not self.clients and not room_manager.is_default_room(self):
             # no more players: shut down the physics world
             try:
                 if hasattr(self.Camera, 'World'):
                     self.Camera.World.Exit()
+                    print(f"Removing room: {self.password}")
             except Exception:
                 pass
             # remove from manager
@@ -138,6 +139,8 @@ class Room:
 class RoomManager:
     def __init__(self):
         self.rooms = {}
+        self._default_rooms = []
+
 
     def generate_password(self):
         return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(6))
@@ -185,6 +188,14 @@ class RoomManager:
             # room.shutdown()  # if you implement one
 
             del self.rooms[room_password]
+
+    def add_default_room(self, room):
+        self._default_rooms.append(self.rooms[room])
+
+    def get_default_room(self):
+        return # to do
+    def is_default_room(self, room):
+        return room in self._default_rooms
 # =====================
 
 room_manager = RoomManager()
@@ -303,7 +314,8 @@ def tcp_server():
 
 def create_play_rooms(num):
     for i in range(num):
-        room_manager.create_room(pwd=str(i+1))
+        pwd = room_manager.create_room(pwd=str(i+1))
+        room_manager.add_default_room(pwd)
 
 # =====================
 # UDP

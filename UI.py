@@ -5,6 +5,7 @@ import time
 import keyboard
 import mouse
 from ContentFilter import ContentFilter
+
 keyboard.hook(lambda e: None)
 
 from bereshit.render import Text, Box
@@ -28,7 +29,14 @@ titles = [
 ]
 chat_filter = ContentFilter()
 
+
 class UI:
+    def attach(self, owner_object):
+        owner_object.add_component([HomeUI(), PlayWithFriendsUI(), PlayUI(), GameUI(), SettingsUI()])
+        return "UI"
+
+
+class AbstractUI:
     def __init__(self):
         self.show = False
         self.buttons = []
@@ -41,12 +49,17 @@ class UI:
     def setup_layout(self):
         pass
 
+    def CloseLayout(self):
+        self.Active = False
+        self.show = False
+        self.render.flush_ui()
+
     def Update(self, dt):
         if not self.show:
             self.setup_layout()
 
         if mouse.is_pressed('left'):
-             for button in self.buttons:
+            for button in self.buttons:
                 if button.click(mouse.get_position()):
                     self.ButtonClicked(button)
 
@@ -72,7 +85,7 @@ class UI:
                 else:
                     text.text += chr(key).lower()
 
-class HomeUI(UI):
+class HomeUI(AbstractUI):
     def Start(self):
         super().Start()
         self.setup_layout()
@@ -130,12 +143,14 @@ class HomeUI(UI):
         self.render.add_text_rect(self.name_text)
 
         # Settings Button (top right)
-        self.settings_button = Box(center=(1850, 950), size=(50, 50), color=(100, 100, 100), opacity=0.8,
+        self.settings_button = Box(center=(1850, 950), size=(70, 84), color=(255, 255, 255), opacity=0.8,
                                    clickable=True)
 
         self.render.add_ui_rect(self.settings_button)
-        self.settings_text = Text(text="⚙", center=(1850, 950), scale=3, color=(255, 255, 255))
-        self.render.add_text_rect(self.settings_text)
+
+        self.settings_logo = Box(center=(1850, 950), size=(70, 70), opacity=0.8, texture="models/settings_icon.png")
+
+        self.render.add_ui_rect(self.settings_logo)
 
         # Exit Button
         self.exit_button = Box(center=(1700, 950), size=(150, 60), color=(244, 67, 54), opacity=0.9, clickable=True)
@@ -162,7 +177,6 @@ class HomeUI(UI):
         self.mouse_over = None
         self.show = True
 
-
     def ButtonClicked(self, button):
         if button == self.play_button:
             self.activatePlaylayout()
@@ -177,9 +191,11 @@ class HomeUI(UI):
             self.parent.World.Exit()
             self.parent.destroy()
             self.client.logout()
+        elif button == self.settings_button:
+            self.activateSettingslayout()
 
     def activatePlaylayout(self):
-        self.client.login()#
+        self.client.login()  #
         pwd = self.client.find_room()
         self.client.join_room(pwd)
         self.Active = False
@@ -190,9 +206,242 @@ class HomeUI(UI):
     def activateFriendslayout(self):
         self.Active = False
         self.show = False
-        self.parent.PlayWithFriends.Active = True
+        self.parent.PlayWithFriendsUI.Active = True
 
-class PlayWithFriends(UI):
+    def activateSettingslayout(self):
+        self.Active = False
+        self.show = False
+        self.parent.SettingsUI.Active = True
+
+
+class SettingsUI(AbstractUI):
+    def setup_layout(self):
+        # Background overlay
+        self.background = Box(center=(960, 540), size=(1920, 1080),
+                              color=(0, 0, 0), opacity=0.5, layer=3)
+        self.render.add_ui_rect(self.background)
+
+        # Main panel
+        self.panel = Box(center=(960, 540), size=(900, 700),
+                         color=(70, 160, 190), opacity=0.95, layer=5)
+        self.render.add_ui_rect(self.panel)
+
+        # Title
+        self.title = Text(
+            text="SETTINGS",
+            center=(960, 200),
+            scale=1.0,
+            color=(255, 255, 255),
+            layer=6
+        )
+        self.render.add_text_rect(self.title)
+
+        # Tabs (Controls / Gameplay / Audio)
+        self.tabs = []
+        tab_positions = [700, 960, 1220]
+
+        for i, x in enumerate(tab_positions):
+            tab = Box(center=(x, 280), size=(220, 70),
+                      color=(230, 150, 50) if i == 0 else (80, 140, 170),
+                      clickable=True, layer=6)
+            self.render.add_ui_rect(tab)
+            self.tabs.append(tab)
+
+        # Section title
+        self.keybindings_title = Text(
+            text="KEYBINDINGS",
+            center=(450, 350),
+            scale=0.6,
+            color=(0, 80, 100),
+            layer=6
+        )
+        self.render.add_text_rect(self.keybindings_title)
+
+        # Left column (movement)
+        bindings_left = [
+            ("W", "Forward"),
+            ("S", "Backward"),
+            ("A", "Left"),
+            ("D", "Right"),
+            ("SPACE", "Jump"),
+            ("F", "Melee"),
+            ("G", "Inspect"),
+        ]
+
+        self.binding_boxes = []
+
+        y = 420
+        for key, action in bindings_left:
+            key_box = Box(center=(420, y), size=(150, 40),
+                          color=(230, 230, 230), clickable=True, layer=6)
+            self.render.add_ui_rect(key_box)
+
+            key_text = Text(text=key, center=(420, y),
+                            scale=0.5, color=(0, 80, 100), layer=7)
+            self.render.add_text_rect(key_text)
+
+            action_text = Text(text=action, center=(550, y),
+                               scale=0.45, color=(0, 80, 100), layer=7)
+            self.render.add_text_rect(action_text)
+
+            self.binding_boxes.append(key_box)
+            y += 55
+
+        # Right column (combat)
+        bindings_right = [
+            ("MOUSE 0", "Fire"),
+            ("SHIFT", "Aim"),
+            ("R", "Reload"),
+            ("E", "Swap Weapon"),
+            ("Q", "Grenade"),
+        ]
+
+        y = 420
+        for key, action in bindings_right:
+            key_box = Box(center=(1000, y), size=(150, 40),
+                          color=(230, 230, 230), clickable=True, layer=6)
+            self.render.add_ui_rect(key_box)
+
+            key_text = Text(text=key, center=(1000, y),
+                            scale=0.5, color=(0, 80, 100), layer=7)
+            self.render.add_text_rect(key_text)
+
+            action_text = Text(text=action, center=(1150, y),
+                               scale=0.45, color=(0, 80, 100), layer=7)
+            self.render.add_text_rect(action_text)
+
+            self.binding_boxes.append(key_box)
+            y += 55
+
+        # Mouse speed label
+        self.mouse_label = Text(
+            text="MOUSE SPEED",
+            center=(960, 650),
+            scale=0.6,
+            color=(0, 80, 100),
+            layer=6
+        )
+        self.render.add_text_rect(self.mouse_label)
+
+        # Slider bar
+        self.slider_bar = Box(center=(960, 700), size=(400, 10),
+                              color=(200, 200, 200), layer=6)
+        self.render.add_ui_rect(self.slider_bar)
+
+        # Slider knob
+        self.slider_knob = Box(center=(1060, 700), size=(20, 20),
+                               color=(255, 150, 50), clickable=True, layer=7)
+        self.render.add_ui_rect(self.slider_knob)
+
+        # Checkboxes
+        self.invert_box = Box(center=(800, 760), size=(30, 30),
+                              color=(230, 230, 230), clickable=True, layer=6)
+        self.render.add_ui_rect(self.invert_box)
+
+        self.invert_text = Text(
+            text="Invert Mouse",
+            center=(900, 760),
+            scale=0.45,
+            color=(0, 80, 100),
+            layer=7
+        )
+        self.render.add_text_rect(self.invert_text)
+
+        self.fix_box = Box(center=(1100, 760), size=(30, 30),
+                           color=(230, 230, 230), clickable=True, layer=6)
+        self.render.add_ui_rect(self.fix_box)
+
+        self.fix_text = Text(
+            text="Fix Mouse Glitch",
+            center=(1250, 760),
+            scale=0.45,
+            color=(0, 80, 100),
+            layer=7
+        )
+        self.render.add_text_rect(self.fix_text)
+
+        # Bottom buttons
+        self.cancel_btn = Box(center=(650, 820), size=(200, 60),
+                              color=(200, 60, 60), clickable=True, layer=6)
+        self.render.add_ui_rect(self.cancel_btn)
+
+        self.cancel_text = Text(
+            text="Cancel",
+            center=(650, 820),
+            scale=0.6,
+            color=(255, 255, 255),
+            layer=7
+        )
+        self.render.add_text_rect(self.cancel_text)
+
+        self.reset_btn = Box(center=(960, 820), size=(250, 60),
+                             color=(230, 150, 50), clickable=True, layer=6)
+        self.render.add_ui_rect(self.reset_btn)
+
+        self.reset_text = Text(
+            text="Reset to Defaults",
+            center=(960, 820),
+            scale=0.5,
+            color=(255, 255, 255),
+            layer=7
+        )
+        self.render.add_text_rect(self.reset_text)
+
+        self.confirm_btn = Box(center=(1270, 820), size=(200, 60),
+                               color=(60, 200, 100), clickable=True, layer=6)
+        self.render.add_ui_rect(self.confirm_btn)
+
+        self.confirm_text = Text(
+            text="Confirm",
+            center=(1270, 820),
+            scale=0.6,
+            color=(255, 255, 255),
+            layer=7
+        )
+        self.render.add_text_rect(self.confirm_text)
+
+        # Close button (top right)
+        self.close_btn = Box(center=(1350, 200), size=(40, 40),
+                             color=(200, 80, 80), clickable=True, layer=7)
+        self.render.add_ui_rect(self.close_btn)
+
+        self.close_text = Text(
+            text="X",
+            center=(1350, 200),
+            scale=0.8,
+            color=(255, 255, 255),
+            layer=8
+        )
+        self.render.add_text_rect(self.close_text)
+
+        # Store buttons
+        self.buttons = (
+                self.tabs +
+                self.binding_boxes +
+                [
+                    self.slider_knob,
+                    self.invert_box,
+                    self.fix_box,
+                    self.cancel_btn,
+                    self.reset_btn,
+                    self.confirm_btn,
+                    self.close_btn
+                ]
+        )
+
+        self.button_colors = [btn.color for btn in self.buttons]
+        self.mouse_over = None
+        self.show = True
+
+    def ButtonClicked(self, button):
+        if button == self.close_btn or self.cancel_btn:
+            self.CloseLayout()
+
+    def CloseLayout(self):
+        super().CloseLayout()
+        self.parent.HomeUI.Active = True
+
+class PlayWithFriendsUI(AbstractUI):
     def setup_layout(self):
         self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.5, layer=3, texture="")
         self.render.add_ui_rect(self.background)
@@ -383,7 +632,6 @@ class PlayWithFriends(UI):
             self.client.login()
             self.CreatRoom()
 
-
     def CreatRoom(self):
         self.client.create_room()
         self.Active = False
@@ -404,16 +652,16 @@ class PlayWithFriends(UI):
         self.client.room = self.code_text.text
 
     def CloseLayout(self):
-        self.Active = False
-        self.show = False
-        self.render.flush_ui()
+        super().CloseLayout()
         self.parent.HomeUI.Active = True
 
-class PlayUI(UI):
+
+class PlayUI(AbstractUI):
     def __init__(self):
         super(PlayUI, self).__init__()
         self.joined = False
         self.chat_log = []
+
     def Start(self):
         super().Start()
 
@@ -563,7 +811,6 @@ class PlayUI(UI):
         self.parent.HomeUI.Active = True
         self.client.logout()
 
-
     def activateGamelayout(self):
         self.Active = False
         self.show = False
@@ -584,7 +831,9 @@ class PlayUI(UI):
             self.chat_messages.text = "\n".join(self.chat_log)
         while self.client.chat_queue:
             self.add_chat_message(self.client.chat_queue.popleft())
-class GameUI(UI):
+
+
+class GameUI(AbstractUI):
 
     def setup_layout(self):
         self.render.hide_cursor()
@@ -614,7 +863,6 @@ class GameUI(UI):
                 self.render.show_cursor()
 
             self.render.text_input = -1
-
 
     def update_shots(self, shots):
         self.shots_text.text = str(shots)
