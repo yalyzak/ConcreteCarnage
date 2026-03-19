@@ -1,5 +1,4 @@
 import random
-import string
 import time
 
 import keyboard
@@ -27,6 +26,7 @@ titles = [
     "One Map. Endless Carnage.",
     "Shoot First. Respawn Later."
 ]
+
 chat_filter = ContentFilter()
 
 
@@ -84,6 +84,7 @@ class AbstractUI:
                     text.text = text.text[:-1]
                 else:
                     text.text += chr(key).lower()
+
 
 class HomeUI(AbstractUI):
     def Start(self):
@@ -440,6 +441,7 @@ class SettingsUI(AbstractUI):
     def CloseLayout(self):
         super().CloseLayout()
         self.parent.HomeUI.Active = True
+
 
 class PlayWithFriendsUI(AbstractUI):
     def setup_layout(self):
@@ -839,11 +841,46 @@ class GameUI(AbstractUI):
         self.render.hide_cursor()
         self.parent.Shoot.Active = True
         self.show = True
+
         self.shots_text = Text(str(self.parent.Shoot.shots), center=(120, 850), scale=1)
+
         self.render.add_text_rect(self.shots_text)
+
         self.muzzle_blast_time = time.perf_counter()
+
         self.muzzle_blast = Box(texture="models/muzzle_flash.png", opacity=0)
+
         self.render.add_ui_rect(self.muzzle_blast)
+
+        # --- HP BAR BACKGROUND ---
+        self.hp_bg = Box(
+            center=(960, 1000),  # bottom-center of screen
+            size=(400, 30),
+            color=(60, 60, 60),
+            opacity=0.9,
+            layer=5
+        )
+        self.render.add_ui_rect(self.hp_bg)
+
+        # --- HP FILL ---
+        self.hp_bar = Box(
+            center=(960, 1000),
+            size=(400, 30),  # full width = full HP
+            color=(60, 200, 100),  # green
+            opacity=1,
+            layer=6
+        )
+        self.render.add_ui_rect(self.hp_bar)
+
+        # --- HP TEXT ---
+        self.hp_text = Text(
+            text=f"100 HP",
+            center=(960, 1000),
+            scale=0.5,
+            color=(255, 255, 255),
+            layer=7
+        )
+        self.render.add_text_rect(self.hp_text)
 
     def Update(self, dt):
         super().Update(dt)
@@ -852,22 +889,39 @@ class GameUI(AbstractUI):
             self.muzzle_blast.opacity = 0
         if key != -1:
             if key == 256:
-                self.render.flush_ui()
-                self.Active = False
-                self.show = False
-                self.parent.PlayerController.Active = False
-                self.parent.PlayUI.Active = True
-                self.parent.Shoot.Active = False
-                self.parent.Shoot.reload()
-                self.client.despawn()
-                self.render.show_cursor()
+               self.esc()
 
             self.render.text_input = -1
+    def esc(self):
+        self.render.flush_ui()
+        self.Active = False
+        self.show = False
+        self.parent.PlayerController.Active = False
+        self.parent.PlayUI.Active = True
+        self.parent.Shoot.Active = False
+        self.parent.Shoot.reload()
+        self.client.despawn()
+        self.render.show_cursor()
 
     def update_shots(self, shots):
         self.shots_text.text = str(shots)
         self.muzzle_blast.opacity = 1
         self.muzzle_blast_time = time.perf_counter()
 
-    def update_hp(self):
-        pass
+    def update_hp(self, hp, max):
+        # store once
+        self.original_width = self.hp_bar.size[0]
+        self.original_center_x = self.hp_bar.center[0]
+
+        # update
+        new_width = self.original_width * hp / max
+
+        # shift center so left side stays fixed
+        new_center_x = self.original_center_x - (self.original_width - new_width) / 2
+
+        self.hp_bar.size = (new_width, self.hp_bar.size[1])
+        self.hp_bar.center = (new_center_x, self.hp_bar.center[1])
+        self.hp_text.text = f"{hp} HP"
+
+    def Death(self):
+        self.esc()
