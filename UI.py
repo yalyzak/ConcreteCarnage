@@ -37,6 +37,13 @@ class UI:
 
 
 class AbstractUI:
+    ping_text = Text(
+        text="PING: 0",
+        center=(80, 40),  # top-left corner (adjust if needed)
+        scale=0.5,
+        color=(255, 255, 255),
+        layer=7
+    )
     def __init__(self):
         self.show = False
         self.buttons = []
@@ -45,9 +52,17 @@ class AbstractUI:
         self.render = self.parent.World.Camera.Camera.render
         self.Active = False
         self.client = self.parent.Client
+        self.usePing()
 
     def setup_layout(self):
         pass
+
+    def usePing(self):
+        self.render.add_text_rect(AbstractUI.ping_text)
+
+    @staticmethod
+    def updatePing(ping):
+        AbstractUI.ping_text.text = f"{ping} MS"
 
     def CloseLayout(self):
         self.Active = False
@@ -57,6 +72,7 @@ class AbstractUI:
     def Update(self, dt):
         if not self.show:
             self.setup_layout()
+            self.usePing()
 
         if mouse.is_pressed('left'):
             for button in self.buttons:
@@ -84,6 +100,9 @@ class AbstractUI:
                     text.text = text.text[:-1]
                 else:
                     text.text += chr(key).lower()
+
+
+
 
 
 class HomeUI(AbstractUI):
@@ -889,9 +908,10 @@ class GameUI(AbstractUI):
             self.muzzle_blast.opacity = 0
         if key != -1:
             if key == 256:
-               self.esc()
+                self.esc()
 
             self.render.text_input = -1
+
     def esc(self):
         self.render.flush_ui()
         self.Active = False

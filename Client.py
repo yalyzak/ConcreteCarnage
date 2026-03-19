@@ -224,6 +224,7 @@ class Client:
             self.wait = False
 
             ping = (time.perf_counter() - ts) * 1000
+            self.parent.HomeUI.updatePing(round(ping, 2))
             # print(f"Ping: {ping:.2f} ms")
 
         elif ptype == PacketType.STATE:
