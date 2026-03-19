@@ -59,6 +59,7 @@ class ClientHelper:
         if time.perf_counter() - self.last_seen() > 5:
             print("logging out ", self.parent.name, time.perf_counter() - self.last_seen())
             # use the client method in case extra cleanup is added later
+            # needs to use despawned for clean up
             self._client.log_out()
 
 
