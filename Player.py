@@ -37,9 +37,10 @@ class Player:
         # self.parent.destroy()
 
 class GamePlayer(Player):
-    def __init__(self):
-        super().__init__()
-        self.UI = self.parent.get_component("GameUI")
+    def attach(self, parent):
+        self.UI = parent.get_component("GameUI")
+        return "Player"
+
     def Hit(self, hp):
         self._HP -= hp
         if self.UI:
