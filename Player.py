@@ -63,6 +63,6 @@ class ServerPlayer(Player):
     def Hit(self, hp):
         self._HP -= hp
         self.parent.ClientHelper.send(self.damage_message())
-        if self._HP <= 0:
-            self.parent.ClientHelper.dead()
+        # if self._HP <= 0:
+        #     self.parent.ClientHelper.dead()
 
