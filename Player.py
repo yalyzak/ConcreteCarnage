@@ -17,6 +17,7 @@ class Player:
         self._HP -= hp
 
 
+
     def Start(self):
         # self.render = self.parent.World.Camera.Camera.render
         # self.render.add_text_rect(self._HP_Text)
@@ -36,13 +37,17 @@ class Player:
         # self.parent.destroy()
 
 class GamePlayer(Player):
-    def set_hp(self, hp):
-        self._HP = hp
+
+    def Hit(self, hp):
+        self._HP -= hp
         self.parent.GameUI.update_hp(self._HP, self._MaxHp)
+        if self._HP <= 0:
+            self.parent.GameUI.esc()
 
     def Death(self):
+        pass
         # self.parent.GameUI.Death()
-        self.parent.destroy()
+        # self.parent.destroy()
 
 
 class ServerPlayer(Player):
@@ -53,6 +58,6 @@ class ServerPlayer(Player):
     def Hit(self, hp):
         self._HP -= hp
         self.parent.ClientHelper.send(self.damage_message())
-        if self._HP <= 0:
-            self.parent.ClientHelper.dead()
+        # if self._HP <= 0:
+        #     self.parent.ClientHelper.dead()
 
