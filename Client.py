@@ -254,7 +254,7 @@ class Client:
             except struct.error:
                 print("Bad damage packet")
                 return
-            self.parent.Player.set_hp(hp)
+            self.parent.Player.Hit(hp)
 
         elif ptype == PacketType.DESPAWN:
              try:
