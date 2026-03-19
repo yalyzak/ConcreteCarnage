@@ -46,7 +46,8 @@ class GamePlayer(Player):
         if self.UI:
             self.parent.GameUI.update_hp(self._HP, self._MaxHp)
         if self._HP <= 0:
-            self.parent.GameUI.esc()
+            if self.UI:
+                self.parent.GameUI.esc()
 
     def Death(self):
         pass
