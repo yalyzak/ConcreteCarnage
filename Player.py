@@ -37,10 +37,13 @@ class Player:
         # self.parent.destroy()
 
 class GamePlayer(Player):
-
+    def __init__(self):
+        super().__init__()
+        self.UI = self.parent.get_component("GameUI")
     def Hit(self, hp):
         self._HP -= hp
-        self.parent.GameUI.update_hp(self._HP, self._MaxHp)
+        if self.UI:
+            self.parent.GameUI.update_hp(self._HP, self._MaxHp)
         if self._HP <= 0:
             self.parent.GameUI.esc()
 
@@ -58,6 +61,6 @@ class ServerPlayer(Player):
     def Hit(self, hp):
         self._HP -= hp
         self.parent.ClientHelper.send(self.damage_message())
-        # if self._HP <= 0:
-        #     self.parent.ClientHelper.dead()
+        if self._HP <= 0:
+            self.parent.ClientHelper.dead()
 
