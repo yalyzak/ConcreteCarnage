@@ -77,7 +77,7 @@ class AbstractUI:
 
         if mouse.is_pressed('left'):
             for button in self.buttons:
-                if button.click(pos, (self.render.width, self.render.height)):
+                if button.click(pos):
                     self.ButtonClicked(button)
                     break
 
