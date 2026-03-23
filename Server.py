@@ -4,16 +4,11 @@ import struct
 import random
 import string
 import select
-from collections import deque
 import ssl
 
-from bereshit import Object, BoxCollider, Rigidbody, Vector3, Camera, Core
-from Movement import PlayerController, ServerController
-from MAP import crateMAPServer as crateMAP
-from debug import debug, debug2
-from Shoot import Shoot
-from Player import ServerPlayer
-
+from bereshit import Object, Vector3, Camera, Core
+from MAP import server_map, server_game_object
+from ClientHelper import ClientHelper
 import time
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT
@@ -38,41 +33,8 @@ def despawn(cid):
 def respawn(cid):
     return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
 
-class ClientHelper:
-    logout_deque = deque(maxlen=200)
-
-    def __init__(self, client):
-        self._client = client
-        self.messages_queue = deque(maxlen=20)
-
-    def last_seen(self):
-        return self._client.last_seen
-
-    def send(self, message):
-        self.messages_queue.append(message)
-
-    def dead(self):
-        ClientHelper.logout_deque.append(self._client)
-
-    def Update(self, dt):
-        # remove the player if they haven't been heard from in a while
-        if time.perf_counter() - self.last_seen() > 5:
-            print("logging out ", self.parent.name, time.perf_counter() - self.last_seen())
-            # use the client method in case extra cleanup is added later
-            # needs to use despawned for clean up
-            self._client.log_out()
 
 
-def game_object(name, client):
-    return Object(name=name, position=Vector3(1, 1, 1)).add_component(
-        [
-            BoxCollider(),
-            Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0)),
-            ServerController(),
-            ClientHelper(client),
-            Shoot(False),
-            ServerPlayer()
-        ])
 class Client:
     def __init__(self, cid, username, tcp_addr):
         self.id = cid
@@ -80,7 +42,7 @@ class Client:
         self.room = None
         self.udp_addr = None
         self.tcp_addr = tcp_addr
-        self.game_object = game_object(username, self)
+        self.game_object = server_game_object(username, self)
         self.last_seen = time.perf_counter()
         self.ServerController = self.game_object.ServerController
 
@@ -162,7 +124,7 @@ class RoomManager:
                 room.add_client(owner)  # auto join
 
 
-            threading.Thread(target=Core.run, args=([room.Camera] + crateMAP(),), kwargs={"Render": False, "tick": TICK}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + server_map(),), kwargs={"Render": False, "tick": TICK}, daemon=True).start()
 
             return pwd
 

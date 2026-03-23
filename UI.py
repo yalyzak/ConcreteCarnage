@@ -73,11 +73,13 @@ class AbstractUI:
         if not self.show:
             self.setup_layout()
             self.usePing()
+        pos = mouse.get_position()
 
         if mouse.is_pressed('left'):
             for button in self.buttons:
-                if button.click(mouse.get_position()):
+                if button.click(pos, (self.render.width, self.render.height)):
                     self.ButtonClicked(button)
+                    break
 
     def get_pressed_keys(self, text):
         start = time.perf_counter()
@@ -222,6 +224,8 @@ class HomeUI(AbstractUI):
         self.render.flush_ui()
         self.show = False
         self.parent.PlayUI.Active = True
+        self.parent.PlayUI.pwd = pwd
+
 
     def activateFriendslayout(self):
         self.Active = False
@@ -654,12 +658,13 @@ class PlayWithFriendsUI(AbstractUI):
             self.CreatRoom()
 
     def CreatRoom(self):
-        self.client.create_room()
+        pwd = self.client.create_room()
         self.Active = False
         self.show = False
         self.render.flush_ui()
         time.sleep(0.1)
         self.parent.PlayUI.Active = True
+        self.parent.PlayUI.pwd = pwd
 
     def joinRoom(self):
         self.client.join_room(self.code_text.text)
@@ -667,6 +672,8 @@ class PlayWithFriendsUI(AbstractUI):
         self.show = False
         self.render.flush_ui()
         self.parent.PlayUI.Active = True
+        self.parent.PlayUI.pwd = self.code_text.text
+
 
     def EnterCode(self):
         self.get_pressed_keys(self.code_text)
@@ -682,6 +689,7 @@ class PlayUI(AbstractUI):
         super(PlayUI, self).__init__()
         self.joined = False
         self.chat_log = []
+        self.pwd = "x"
 
     def Start(self):
         super().Start()
@@ -788,6 +796,14 @@ class PlayUI(AbstractUI):
                                layer=8)
         self.render.add_text_rect(self.chat_input)
 
+        # Room password text (bottom right)
+        self.room_password = Text(text=f"Room Password: {self.pwd}",
+                                  center=(1700, 1000),
+                                  scale=0.4,
+                                  color=(255, 255, 255),
+                                  layer=7)
+        self.render.add_text_rect(self.room_password)
+
         # Chat storage
         self.load_chat_from_log()
         self.current_input = ""
@@ -858,6 +874,16 @@ class GameUI(AbstractUI):
 
     def setup_layout(self):
         self.render.hide_cursor()
+
+        self.cursor = Box(texture="models/cursor.png", size=(50,50))
+
+        self.render.add_ui_rect(self.cursor)
+
+        self.gun = Box(texture="models/Pistol_POV.png", center=(1500, 900), size=(600, 300))
+
+        self.render.add_ui_rect(self.gun)
+
+
         self.parent.Shoot.Active = True
         self.show = True
 

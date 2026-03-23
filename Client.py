@@ -7,11 +7,11 @@ import select
 import ssl
 from collections import deque
 
-from bereshit import Vector3, Object, BoxCollider, Rigidbody
+from bereshit import Vector3, Object
+from MAP import client_game_object
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT
 
-from Player import GamePlayer
 
 class Client:
 
@@ -70,6 +70,7 @@ class Client:
         if not self.logged_in:
             try:
                 self.tcp = self.connect()
+                self.wait = False
                 self.tcp.connect((self.server_ip, 5000))
                 self.tcp.send(self.name.encode())
 
@@ -99,7 +100,6 @@ class Client:
     def create_room(self):
         self.tcp.send(b"CREATE") #
         response = self.tcp.recv(128).decode()
-        print(response)
         # Extract password from response
         if "password" in response:
             pwd = response.split()[-1]
@@ -171,14 +171,6 @@ class Client:
 
         self.udp.sendto(packet, (self.server_ip, 5001))
 
-    @staticmethod
-    def game_object(player_id, server_pos, server_vel):
-         return Object(name=player_id, position=server_pos).add_component(
-            [BoxCollider(),
-             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel),
-             GamePlayer()
-             ])
-
     def position_correction(self, game_pos, server_pos, game_vel, server_vel):
 
 
@@ -246,7 +238,7 @@ class Client:
                     player.position = server_pos
                     player.Rigidbody.velocity = server_vel
                 else: # tobe removed
-                    self.players.add_child(self.game_object(player_id, server_pos, server_vel))
+                    self.players.add_child(client_game_object(player_id, server_pos, server_vel))
                     print("new player joined")
 
         elif ptype == PacketType.DAMAGE:
