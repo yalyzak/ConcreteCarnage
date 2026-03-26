@@ -108,10 +108,15 @@ class AbstractUI:
 
 
 class HomeUI(AbstractUI):
+    def __init__(self):
+        super(HomeUI, self).__init__()
+        self._user_name = "Player" + ''.join(str(random.randint(0, 9)) for _ in range(5))
+
+
     def Start(self):
         super().Start()
         self.setup_layout()
-        self.client.name = self.name_text.text
+        self.client.name = self._user_name
 
         # for comp in self.parent.components.values():
         #     comp.Active = False
@@ -160,8 +165,8 @@ class HomeUI(AbstractUI):
         self.render.add_ui_rect(self.signin_button)
         self.signin_text = Text(text="name:", center=(100, 295), scale=1, color=(255, 255, 255))
         self.render.add_text_rect(self.signin_text)
-        number = ''.join(str(random.randint(0, 9)) for _ in range(5))
-        self.name_text = Text(text="Player" + number, center=(320, 300), scale=0.6, color=(255, 255, 255))
+
+        self.name_text = Text(text=self._user_name, center=(320, 300), scale=0.6, color=(255, 255, 255))
         self.render.add_text_rect(self.name_text)
 
         # Settings Button (top right)
@@ -209,6 +214,7 @@ class HomeUI(AbstractUI):
         elif button == self.signin_button:
             self.get_pressed_keys(self.name_text)
             self.client.name = self.name_text.text
+            self._user_name = self.name_text.text
         elif button == self.exit_button:
             self.parent.World.Exit()
             self.parent.destroy()

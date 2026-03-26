@@ -102,7 +102,9 @@ class Room:
 class RoomManager:
     def __init__(self):
         self.rooms = {}
+        self.usernames = {}
         self._default_rooms = []
+
 
 
     def generate_password(self):
@@ -137,7 +139,9 @@ class RoomManager:
 
             client.last_seen = time.perf_counter()
             room.add_client(client)
+            self.usernames[client.username] = True
             return True
+
 
     def remove_room(self, room_password):
         with room_manager_lock:
@@ -173,6 +177,9 @@ def tcp_thread(conn):
 
     try:
         username = conn.recv(128).decode()
+        i = 0
+        while room_manager.usernames.get(username):
+            username += f"_{i}"
     except Exception as e:
         print("TCP recv failed during login", e)
         conn.close()

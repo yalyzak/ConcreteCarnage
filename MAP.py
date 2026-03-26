@@ -255,8 +255,8 @@ def main_game_object():
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True),
             Camera(shading="material preview"),
             PlayerController(),
-            UI(),
             Client(),  # "192.168.1.163"
             Shoot(True),
             GamePlayer(),
+            UI(),
         ])
