@@ -367,7 +367,6 @@ def pong(raw_data, addr):
     except Exception as e:
         print("Failed to send pong", e)
 
-
 def movement(raw_data, addr):
     data_bytes = raw_data[:-SIGNATURE_SIZE]
     received_sig = raw_data[-SIGNATURE_SIZE:]

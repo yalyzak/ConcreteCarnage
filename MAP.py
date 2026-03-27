@@ -257,6 +257,6 @@ def main_game_object():
             PlayerController(),
             Client(),  # "192.168.1.163"
             Shoot(True),
-            GamePlayer(),
             UI(),
+            GamePlayer(),
         ])
