@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import socket
 import threading
 import struct
@@ -5,14 +7,15 @@ import random
 import string
 import select
 import ssl
+import secrets
 
 from bereshit import Object, Vector3, Camera, Core
 from MAP import server_map, server_game_object
 from ClientHelper import ClientHelper
 import time
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT
-
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT, \
+    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
@@ -24,20 +27,44 @@ clients = {}
 
 room_manager_lock = threading.Lock()
 
+
 # =====================
 # OBJECTS
 # =====================
 def despawn(cid):
     return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
 
+
 def respawn(cid):
     return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
 
 
+def generate_token():
+    token = secrets.token_bytes(16)
+    with room_manager_lock:
+        rooms_copy = list(room_manager.rooms.values())
+    for room in rooms_copy:
+        for client in room.clients:
+            if client.verify_token(token):
+                return generate_token()
+    return token
+
+
+def create_session():
+    return generate_token(), secrets.token_bytes(32)
+
+
+def verify_signature(data, received_signature, secret):
+    expected_signature = hmac.new(secret, data, hashlib.sha256).digest()
+
+    return hmac.compare_digest(expected_signature, received_signature)
+
 
 class Client:
-    def __init__(self, cid, username, tcp_addr):
-        self.id = cid
+    def __init__(self, id, token, secret, username, tcp_addr):
+        self.id = id
+        self._token = token
+        self._secret = secret
         self.username = username
         self.room = None
         self.udp_addr = None
@@ -46,14 +73,22 @@ class Client:
         self.last_seen = time.perf_counter()
         self.ServerController = self.game_object.ServerController
 
+    def get_secret(self):
+        return self._secret
+
     def log_out(self):
         self.room.remove_client(self)
+
+    def verify_token(self, token):
+        return self._token == token
+
+
 class Room:
     def __init__(self, password, room_manager):
         self.password = password
         self.clients = []
         self.room_manager = room_manager
-        camera = Object(name="camera", position=Vector3(0,10,0), rotation=Vector3(90,0,0)).add_component(Camera())
+        camera = Object(name="camera", position=Vector3(0, 10, 0), rotation=Vector3(90, 0, 0)).add_component(Camera())
         self.Camera = camera
         self.last_broadcast = time.perf_counter()
 
@@ -82,8 +117,6 @@ class Room:
             # remove from manager
             self.room_manager.remove_room(self.password)
 
-
-
     def broadcast(self, data, udp):
         """Send *data* to every client in the room.
 
@@ -99,16 +132,15 @@ class Room:
             if c.udp_addr:
                 udp.sendto(data, c.udp_addr)
 
+
 class RoomManager:
     def __init__(self):
         self.rooms = {}
         self.usernames = {}
         self._default_rooms = []
 
-
-
     def generate_password(self):
-        return ''.join(random.choice(string.ascii_letters+string.digits) for _ in range(6))
+        return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(6))
 
     def create_room(self, owner=None, pwd=None):
         with room_manager_lock:
@@ -125,11 +157,10 @@ class RoomManager:
                 owner.last_seen = time.perf_counter()
                 room.add_client(owner)  # auto join
 
-
-            threading.Thread(target=Core.run, args=([room.Camera] + server_map(),), kwargs={"Render": False, "tick": TICK}, daemon=True).start()
+            threading.Thread(target=Core.run, args=([room.Camera] + server_map(),),
+                             kwargs={"Render": False, "tick": TICK}, daemon=True).start()
 
             return pwd
-
 
     def join_room(self, pwd, client):
         with room_manager_lock:
@@ -141,7 +172,6 @@ class RoomManager:
             room.add_client(client)
             self.usernames[client.username] = True
             return True
-
 
     def remove_room(self, room_password):
         with room_manager_lock:
@@ -160,13 +190,17 @@ class RoomManager:
         self._default_rooms.append(self.rooms[room])
 
     def get_default_room(self):
-        return # to do
+        return  # to do
+
     def is_default_room(self, room):
         return room in self._default_rooms
+
+
 # =====================
 
 room_manager = RoomManager()
 next_id = 1
+
 
 # =====================
 # TCP
@@ -188,10 +222,12 @@ def tcp_thread(conn):
     with clients_lock:
         cid = next_id
         next_id += 1
-        client = Client(cid, username, conn)
+        token, secret = create_session()
+        client = Client(cid, token, secret, username, conn)
         clients[cid] = client
 
-    conn.send(f"LOGIN {cid}".encode())
+    data = struct.pack(LOGIN_FORMAT, cid, token, secret)
+    conn.send(data)
 
     while True:
         try:
@@ -255,17 +291,19 @@ def tcp_thread(conn):
 
             elif cmd[0] == "CHAT":
                 msg = cmd[1]
-                for c in client.room.clients:
-                    if c != client:
-                        try:
-                            c.tcp_addr.sendall(msg.encode())
-                        except Exception as e:
-                           print(f"could not send msg {e}")
+                if client.room:
+                    for c in client.room.clients:
+                        if c != client:
+                            try:
+                                c.tcp_addr.sendall(msg.encode())
+                            except Exception as e:
+                                print(f"could not send msg {e}")
         except Exception as e:
             print("TCP thread error for client", client.username, e)
             break
 
     conn.close()
+
 
 def tcp_server():
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -279,13 +317,14 @@ def tcp_server():
         conn, _ = tcp_sock.accept()
 
         conn = context.wrap_socket(conn, server_side=True)
-        threading.Thread(target=tcp_thread, args=(conn, )).start()
+        threading.Thread(target=tcp_thread, args=(conn,)).start()
 
 
 def create_play_rooms(num):
     for i in range(num):
-        pwd = room_manager.create_room(pwd=str(i+1))
+        pwd = room_manager.create_room(pwd=str(i + 1))
         room_manager.add_default_room(pwd)
+
 
 # =====================
 # UDP
@@ -297,12 +336,62 @@ udp.bind(("0.0.0.0", 5001))
 # VERY IMPORTANT
 udp.setblocking(False)
 
-
-
 MAX_PACKETS_PER_TICK = 200
+
+
+def pong(raw_data, addr):
+    data_bytes = raw_data[:-SIGNATURE_SIZE]
+    received_sig = raw_data[-SIGNATURE_SIZE:]
+    data = struct.unpack(PING_FORMAT + SIGNATURE_FORMAT, raw_data)[1:]
+    cid, token, seq, timestamp, signature = data
+
+    with clients_lock:
+        client = clients.get(cid)
+    if not client:
+        return
+    if not verify_signature(data_bytes, received_sig, client.get_secret()):
+        print("Invalid signature")
+        return
+
+    pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
+    client.last_seen = time.perf_counter()
+    try:
+        udp.sendto(pong, addr)
+    except Exception as e:
+        print("Failed to send pong", e)
+
+def movement(raw_data, addr):
+    data_bytes = raw_data[:-SIGNATURE_SIZE]
+    received_sig = raw_data[-SIGNATURE_SIZE:]
+    data = struct.unpack(CLIENT_PACK_FORMAT, raw_data)[1:]
+    cid, token, seq, keys, dx, dy, timestamp = data
+
+
+
+    with clients_lock:
+        client = clients.get(cid)
+    if not client:
+        return
+    room = client.room
+    if not room:
+        return
+
+    if not verify_signature(data_bytes, received_sig, client.get_secret()):
+        print("Invalid signature")
+        return
+
+    client.udp_addr = addr
+    client.last_seen = time.perf_counter()
+
+    try:
+        client.ServerController.input_queue.append((keys, dx, dy))
+
+    except Exception as e:
+        print("Input controller error", e)
+
 def udp_server():
     last_broadcast_all = time.perf_counter()
-    
+
     while True:
         # ---------------------------------
         # WAIT FOR PACKETS with short timeout (responsive but not busy-wait)
@@ -327,47 +416,18 @@ def udp_server():
 
                     if ptype_val == PacketType.PING:
                         try:
-                            cid, timestamp = struct.unpack(PING_FORMAT, data)[1:]
+                            pong(data, addr)
                         except struct.error:
+                            print("could not receive ping")
                             continue
-
-                        with clients_lock:
-                            client = clients.get(cid)
-                        if not client or not client.room:
-                            continue
-
-                        # PONG immediately - highest priority
-                        pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
-                        client.last_seen = time.perf_counter()
-                        try:
-                            udp.sendto(pong, addr)
-                        except Exception as e:
-                            print("Failed to send pong", e)
 
                     elif ptype_val == PacketType.INPUT:
                         try:
-                            _, cid, keys, dx, dy, timestamp = struct.unpack(CLIENT_PACK_FORMAT, data)
-
+                            movement(data, addr)
                         except struct.error:
                             continue
 
-                        with clients_lock:
-                            client = clients.get(cid)
-                        if not client:
-                            continue
-                        room = client.room
-                        if not room:
-                            continue
 
-                        client.udp_addr = addr
-                        client.last_seen = time.perf_counter()
-
-
-                        try:
-                            client.ServerController.input_queue.append((keys, dx, dy))
-
-                        except Exception as e:
-                            print("Input controller error", e)
 
             except Exception as e:
                 print("Packet processing error", e)
@@ -393,11 +453,11 @@ def udp_server():
                         velocity = client.game_object.Rigidbody.velocity
 
                         data = struct.pack(STATE_FORMAT, PacketType.STATE,
-                                            client.id,
-                                            position.x, position.y, position.z,
-                                            rotation.w, rotation.x, rotation.y, rotation.z,
-                                            velocity.x, velocity.y, velocity.z,
-                                            )
+                                           client.id,
+                                           position.x, position.y, position.z,
+                                           rotation.w, rotation.x, rotation.y, rotation.z,
+                                           velocity.x, velocity.y, velocity.z,
+                                           )
                         room.broadcast(data, udp)  # broadcast to everyone
 
             except Exception as e:
@@ -434,6 +494,7 @@ def udp_server():
         except Exception as e:
             print("Updating error", e)
 
+
 def main():
     # start networking threads as daemons so they exit when main thread stops
     threading.Thread(target=tcp_server, daemon=True).start()
@@ -451,4 +512,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

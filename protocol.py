@@ -12,11 +12,14 @@ class PacketType(IntEnum):
 
 # struct formats for packets
 
-CLIENT_PACK_FORMAT = "!BIIhhd"  # type, id, mask, dx, dy, dt
-PING_FORMAT = "!BId"            # type, id, timestamp
+CLIENT_PACK_FORMAT = "!BI16s2Ihhd"  # type, id, token, seq, mask, dx, dy, dt
+PING_FORMAT = "!BI16sId"            # type, id, token, seq, timestamp
 PONG_FORMAT = "!Bd"             # type, timestamp
 STATE_FORMAT = "!BI10f"         # type + id + 10 floats: id, pos(3), quat(4), vel(3)
 DAMAGE_FORMAT = "!B1f"          # type + HP
 SPAWN_FORMAT = "!BI"             # type + id
+SIGNATURE_FORMAT = "32s"
+SIGNATURE_SIZE = 32
 
+LOGIN_FORMAT = "!I16s32s"
 TICK = 1/30

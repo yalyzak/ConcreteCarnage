@@ -1,4 +1,6 @@
 # client.py
+import hashlib
+import hmac
 import random
 import socket
 import struct
@@ -10,7 +12,7 @@ from collections import deque
 from bereshit import Vector3, Object
 from MAP import client_game_object
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT, LOGIN_FORMAT
 
 
 class Client:
@@ -18,8 +20,11 @@ class Client:
     def __init__(self, name="", ip = "127.0.0.1"):
         self.name = name
         self.id = None
+        self._token = None
+        self._secret = None
         self.logged_in = False
         self.server_ip = ip
+        self._seq = 0
 
         context = ssl.create_default_context()
         self.context = ssl._create_unverified_context()
@@ -74,9 +79,19 @@ class Client:
                 self.tcp.connect((self.server_ip, 5000))
                 self.tcp.send(self.name.encode())
 
-                msg = self.tcp.recv(128).decode()
-                self.id = int(msg.split()[1])
-                print("id", self.id)
+                msg = self.tcp.recv(128)
+
+                parts = struct.unpack(LOGIN_FORMAT, msg)
+
+                if len(parts) < 3:
+                    raise ValueError(f"Invalid login response: {msg}")
+
+                self.id = int(parts[0])
+
+                # keep as BYTES (good for crypto later)
+                self._token = parts[1]
+                self._secret = parts[2]
+
                 self.logged_in = True
             except Exception as e:
                 print("Login failed", e)
@@ -153,21 +168,47 @@ class Client:
     def send_chat(self, msg):
         self.tcp.send(f"CHAT {msg}".encode())
 
+    def send_ping(self):
+        now = time.perf_counter()
+        self.wait = True
+        seq = self.seq()
+        data = struct.pack(
+            PING_FORMAT,
+            PacketType.PING,
+            self.id,
+            self._token,
+            seq,
+            now
+        )
+        signature = self.build_signature(data)
+
+        packet = data + signature
+
+        self.udp.sendto(packet, (self.server_ip, 5001))
+        self.last_ping_time = now
+
     def send_input(self, keys, dx, dy, dt):
+        seq = self.seq()
         mask = 0
         for i, pressed in enumerate(keys):
             if pressed:
                 mask |= (1 << i)
 
-        packet = struct.pack(
+        data = struct.pack(
             CLIENT_PACK_FORMAT,
             PacketType.INPUT,
             self.id,
+            self._token,
+            seq,
             mask,
             dx,
             dy,
             dt
         )
+
+        signature = self.build_signature(data)
+
+        packet = data + signature
 
         self.udp.sendto(packet, (self.server_ip, 5001))
 
@@ -310,37 +351,33 @@ class Client:
 
         except BlockingIOError:
             pass
-    def send_ping(self):
-        now = time.perf_counter()
-        self.wait = True
-
-        packet = struct.pack(
-            PING_FORMAT,
-            PacketType.PING,
-            self.id,
-            now
-        )
-
-        self.udp.sendto(packet, (self.server_ip, 5001))
-        self.last_ping_time = now
 
 
+    def seq(self):
+        self._seq += 1
+        return self._seq
+
+    def build_signature(self, data):
+        return hmac.new(self._secret, data, hashlib.sha256).digest()
 # =====================
 if __name__ == "__main__":
     c = Client("Player1")
     c.login()
-    pwd = c.create_room()
+    psw = c.find_room()
+    c.join_room("0")
+    # c.respawn()
+    # pwd = c.create_room()
     time.sleep(1)
     # c.join_room(pwd)
     # c.respawn()
     start = time.perf_counter()
-    c.send_chat("gg")
-    while True:
-        c.receive_chat()
+    # c.send_chat("gg")
+    # while True:
+    #     c.receive_chat()
 
-    # for i in range(5):
-    #     c.send_ping()
-    #     time.sleep(1)
+    for i in range(5):
+        c.send_ping()
+        time.sleep(1)
     # c.despawn()
     c.logout()
     # c.send_ping()
