@@ -65,6 +65,7 @@ class Client:
         self.id = id
         self._token = token
         self._secret = secret
+        self._seq = 0
         self.username = username
         self.room = None
         self.udp_addr = None
@@ -81,6 +82,12 @@ class Client:
 
     def verify_token(self, token):
         return self._token == token
+
+    def verify_seq(self, seq):
+        return self._seq <= seq
+
+    def update_seq(self, seq):
+        self._seq = seq
 
 
 class Room:
@@ -360,13 +367,12 @@ def pong(raw_data, addr):
     except Exception as e:
         print("Failed to send pong", e)
 
+
 def movement(raw_data, addr):
     data_bytes = raw_data[:-SIGNATURE_SIZE]
     received_sig = raw_data[-SIGNATURE_SIZE:]
-    data = struct.unpack(CLIENT_PACK_FORMAT, raw_data)[1:]
+    data = struct.unpack(CLIENT_PACK_FORMAT, data_bytes)[1:]
     cid, token, seq, keys, dx, dy, timestamp = data
-
-
 
     with clients_lock:
         client = clients.get(cid)
@@ -376,9 +382,18 @@ def movement(raw_data, addr):
     if not room:
         return
 
+    if not client.verify_token(token):
+        return
+
     if not verify_signature(data_bytes, received_sig, client.get_secret()):
         print("Invalid signature")
         return
+
+    if not client.verify_seq(seq):
+        return
+
+
+    client.update_seq(seq)
 
     client.udp_addr = addr
     client.last_seen = time.perf_counter()
@@ -388,6 +403,7 @@ def movement(raw_data, addr):
 
     except Exception as e:
         print("Input controller error", e)
+
 
 def udp_server():
     last_broadcast_all = time.perf_counter()
