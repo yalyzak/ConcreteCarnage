@@ -245,7 +245,7 @@ def client_game_object(player_id, server_pos, server_vel):
         ])
 
 
-def main_game_object():
+def main_game_object(ip="127.0.0.1"):
     from Client import Client
     from UI import UI
     from bereshit import Camera
@@ -255,7 +255,7 @@ def main_game_object():
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True),
             Camera(shading="material preview"),
             PlayerController(),
-            Client(),  # "192.168.1.163"
+            Client(ip=ip),  # "192.168.1.163"
             Shoot(True),
             UI(),
             GamePlayer(),
