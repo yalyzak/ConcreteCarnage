@@ -156,9 +156,9 @@ class HomeUI(AbstractUI):
 
         # Game Mode Button
         self.mode_button = Box(center=(1270, 900), size=(250, 80), color=(156, 39, 176), opacity=0.9, clickable=True)
-        self.render.add_ui_rect(self.mode_button)
+        # self.render.add_ui_rect(self.mode_button)
         self.mode_text = Text(text="GAME MODE", center=(1270, 900), scale=0.5, color=(255, 255, 255))
-        self.render.add_text_rect(self.mode_text)
+        # self.render.add_text_rect(self.mode_text)
 
         # Sign In Button (top right)
         self.signin_button = Box(center=(320, 300), size=(220, 60), color=(76, 175, 80), opacity=0.9, clickable=True)
@@ -173,11 +173,11 @@ class HomeUI(AbstractUI):
         self.settings_button = Box(center=(1850, 950), size=(70, 84), color=(255, 255, 255), opacity=0.8,
                                    clickable=True)
 
-        self.render.add_ui_rect(self.settings_button)
+        # self.render.add_ui_rect(self.settings_button)
 
         self.settings_logo = Box(center=(1850, 950), size=(70, 70), opacity=0.8, texture="models/settings_icon.png")
 
-        self.render.add_ui_rect(self.settings_logo)
+        # self.render.add_ui_rect(self.settings_logo)
 
         # Exit Button
         self.exit_button = Box(center=(1700, 950), size=(150, 60), color=(244, 67, 54), opacity=0.9, clickable=True)
@@ -194,8 +194,8 @@ class HomeUI(AbstractUI):
         self.weapon_boxes = []
         for i, (pos, color) in enumerate(zip(weapon_positions, weapon_colors)):
             box = Box(center=(pos, 780), size=(80, 60), color=color, opacity=0.8)
-            self.render.add_ui_rect(box)
-            self.weapon_boxes.append(box)
+            # self.render.add_ui_rect(box)
+            # self.weapon_boxes.append(box)
 
         # Mouse position tracking for button hover effects (optional)
         self.buttons = [self.play_button, self.friends_button, self.mode_button, self.signin_button,
@@ -505,7 +505,7 @@ class PlayWithFriendsUI(AbstractUI):
             opacity=1,
             layer=6
         )
-        self.render.add_ui_rect(self.map_preview)
+        # self.render.add_ui_rect(self.map_preview)
 
         self.map_text = Text(
             text="METAMORPH",
@@ -514,7 +514,7 @@ class PlayWithFriendsUI(AbstractUI):
             color=(255, 255, 255),
             layer=7
         )
-        self.render.add_text_rect(self.map_text)
+        # self.render.add_text_rect(self.map_text)
 
         # Game mode button
         self.mode_box = Box(
@@ -545,7 +545,7 @@ class PlayWithFriendsUI(AbstractUI):
             clickable=True,
             layer=6
         )
-        self.render.add_ui_rect(self.server_box)
+        # self.render.add_ui_rect(self.server_box)
 
         self.server_text = Text(
             text="SERVERS\nGERMANY",
@@ -554,7 +554,7 @@ class PlayWithFriendsUI(AbstractUI):
             color=(0, 50, 70),
             layer=7
         )
-        self.render.add_text_rect(self.server_text)
+        # self.render.add_text_rect(self.server_text)
 
         # Create Game button
         self.create_button = Box(
@@ -732,7 +732,7 @@ class PlayUI(AbstractUI):
 
         self.respawn_text = Text(text="RESPAWN",
                                  center=(960, 520),
-                                 scale=0.9,
+                                 scale=0.8,
                                  color=(255, 255, 255),
                                  layer=7)
         self.render.add_text_rect(self.respawn_text)
@@ -748,7 +748,7 @@ class PlayUI(AbstractUI):
 
         self.menu_text = Text(text="MAIN MENU",
                               center=(960, 630),
-                              scale=0.8,
+                              scale=0.7,
                               color=(255, 255, 255),
                               layer=7)
         self.render.add_text_rect(self.menu_text)
