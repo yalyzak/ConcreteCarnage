@@ -885,7 +885,7 @@ class GameUI(AbstractUI):
 
         self.render.add_ui_rect(self.cursor)
 
-        self.gun = Box(texture="models/Pistol_POV.png", center=(1500, 900), size=(600, 300))
+        self.gun = Box(texture="models/Pistol_POV.png", center=(1500, 950), size=(600, 300))
 
         self.render.add_ui_rect(self.gun)
 
