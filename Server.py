@@ -254,7 +254,7 @@ def tcp_thread(conn):
         cid = next_id
         next_id += 1
         token, secret = create_session()
-        client = Client(cid, username, conn)
+        client = Client(cid, token, secret, username, conn)
         clients[cid] = client
 
     data = struct.pack(LOGIN_FORMAT, cid, token, secret)
