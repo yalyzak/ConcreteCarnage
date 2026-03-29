@@ -490,7 +490,7 @@ class PlayWithFriendsUI(AbstractUI):
         # Title
         self.title = Text(
             text="CREATE PRIVATE GAME",
-            center=(860, 350),
+            center=(950, 350),
             scale=0.8,
             color=(255, 255, 255),
             layer=6
