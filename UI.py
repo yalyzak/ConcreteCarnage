@@ -569,8 +569,8 @@ class PlayWithFriendsUI(AbstractUI):
 
         self.create_text = Text(
             text="CREATE GAME →",
-            center=(1080, 580),
-            scale=0.6,
+            center=(1101, 580),
+            scale=0.55,
             color=(255, 255, 255),
             layer=7
         )
