@@ -20,6 +20,6 @@ DAMAGE_FORMAT = "!B1f"          # type + HP
 SPAWN_FORMAT = "!BI"             # type + id
 SIGNATURE_FORMAT = "32s"
 SIGNATURE_SIZE = 32
-
+SESSION_TIMEOUT = 120
 LOGIN_FORMAT = "!I16s32s"
 TICK = 1/30

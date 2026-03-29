@@ -15,7 +15,7 @@ from ClientHelper import ClientHelper
 import time
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT, \
-    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE
+    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT
 
 HOST = "0.0.0.0"
 TCP_PORT = 5000
@@ -66,6 +66,7 @@ class Client:
         self._token = token
         self._secret = secret
         self._seq = 0
+        self._session_time = time.process_time()
         self.username = username
         self.room = None
         self.udp_addr = None
@@ -81,13 +82,26 @@ class Client:
         self.room.remove_client(self)
 
     def verify_token(self, token):
-        return self._token == token
+        if hmac.compare_digest(self._token, token):
+            if time.process_time() - self._session_time < SESSION_TIMEOUT:
+                return True
+            else:
+                return True
+                self.start_new_session()
+        return False
 
     def verify_seq(self, seq):
         return self._seq <= seq
 
     def update_seq(self, seq):
         self._seq = seq
+
+    def start_new_session(self, token, secret):
+        self._token = token
+        self._secret = secret
+        self._seq = 0
+        self._session_time = time.perf_counter()
+
 
 
 class Room:
@@ -213,6 +227,16 @@ next_id = 1
 # TCP
 # =====================
 
+def create_new_room(client, conn):
+    pwd = room_manager.create_room(client)
+    client.last_seen = time.perf_counter()
+    if pwd:
+        conn.send(f"created a room with this password {pwd}".encode())
+    else:
+        conn.send(b"EXISTS")
+
+
+
 def tcp_thread(conn):
     global next_id
 
@@ -230,7 +254,7 @@ def tcp_thread(conn):
         cid = next_id
         next_id += 1
         token, secret = create_session()
-        client = Client(cid, token, secret, username, conn)
+        client = Client(cid, username, conn)
         clients[cid] = client
 
     data = struct.pack(LOGIN_FORMAT, cid, token, secret)
@@ -245,12 +269,7 @@ def tcp_thread(conn):
             cmd = data.split()
 
             if cmd[0] == "CREATE":
-                pwd = room_manager.create_room(client)
-                client.last_seen = time.perf_counter()
-                if pwd:
-                    conn.send(f"created a room with this password {pwd}".encode())
-                else:
-                    conn.send(b"EXISTS")
+                create_new_room(client, conn)
 
             elif cmd[0] == "JOIN":
                 ok = room_manager.join_room(cmd[1], client)
@@ -352,13 +371,19 @@ def pong(raw_data, addr):
     data = struct.unpack(PING_FORMAT + SIGNATURE_FORMAT, raw_data)[1:]
     cid, token, seq, timestamp, signature = data
 
+
     with clients_lock:
         client = clients.get(cid)
     if not client:
         return
+    if not client.verify_token(token):
+        return
     if not verify_signature(data_bytes, received_sig, client.get_secret()):
         print("Invalid signature")
         return
+
+
+
 
     pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
     client.last_seen = time.perf_counter()
@@ -366,6 +391,7 @@ def pong(raw_data, addr):
         udp.sendto(pong, addr)
     except Exception as e:
         print("Failed to send pong", e)
+
 
 def movement(raw_data, addr):
     data_bytes = raw_data[:-SIGNATURE_SIZE]
@@ -390,7 +416,6 @@ def movement(raw_data, addr):
 
     if not client.verify_seq(seq):
         return
-
 
     client.update_seq(seq)
 

@@ -17,7 +17,7 @@ from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, S
 
 class Client:
 
-    def __init__(self, name="", ip = "127.0.0.1"):
+    def __init__(self, name="", ip="127.0.0.1"):
         self.name = name
         self.id = None
         self._token = None
