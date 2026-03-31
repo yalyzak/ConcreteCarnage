@@ -17,47 +17,472 @@ import time
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT, \
     LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT
 
-HOST = "0.0.0.0"
-TCP_PORT = 5000
-UDP_PORT = 5001
-
-# thread-safe collections
-clients_lock = threading.Lock()
-clients = {}
-
-room_manager_lock = threading.Lock()
+from concurrent.futures import ThreadPoolExecutor
 
 
-# =====================
-# OBJECTS
-# =====================
-def despawn(cid):
-    return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
+class Tcp:
+    HOST = "0.0.0.0"
+    MAX_CLIENTS = 100
+
+    @staticmethod
+    def despawn(cid):
+        return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
+
+    @staticmethod
+    def respawn(cid):
+        return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
+
+    def __init__(self, room_manager, clients, clients_lock, udp):
+        self.udp = udp
+        self.TCP_PORT = 5000
+        self.UDP_PORT = 5001
+        self.clients = clients
+        self.clients_lock = clients_lock
+        self.connections_lock = threading.Lock()
+        self.ip_connections = {}
+        self.MAX_PER_IP = 5
+        self.room_manager = room_manager
+        self.room_manager_lock = self.room_manager.room_manager_lock
+        self.next_id = 1
+        self.executor = ThreadPoolExecutor(max_workers=50)
+        self.active_connections = 0
+        self.pending_handshakes = 0
+        self.MAX_HANDSHAKES = 20
+
+    def create_session(self):
+        return self.generate_token(), secrets.token_bytes(32)
+
+    def create_play_rooms(self, num):
+        for i in range(num):
+            pwd = self.room_manager.create_room(pwd=str(i + 1))
+            self.room_manager.add_default_room(pwd)
+
+    def create_new_room(self, client, conn):
+        pwd = self.room_manager.create_room(client)
+        client.last_seen = time.perf_counter()
+        if pwd:
+            conn.send(f"created a room with this password {pwd}".encode())
+        else:
+            conn.send(b"EXISTS")
+
+    def generate_token(self):
+        token = secrets.token_bytes(16)
+        with self.room_manager_lock:
+            rooms_copy = list(self.room_manager.rooms.values())
+        for room in rooms_copy:
+            for client in room.clients:
+                if client.verify_token(token):
+                    return self.generate_token()
+        return token
+
+    def tcp_server(self):
+
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+
+        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        tcp_sock.bind((self.HOST, self.TCP_PORT))
+        tcp_sock.listen(1024)  # larger backlog
+
+        print(f"[TCP] Server listening on {self.HOST}:{self.TCP_PORT}")
+
+        self.create_play_rooms(1)
+
+        while True:
+            try:
+                conn, addr = tcp_sock.accept()
+                conn.settimeout(5)
+            except Exception:
+                continue
+
+            ip = addr[0]
+
+            # 🔒 Per-IP rate limiting
+            with self.connections_lock:
+                count = self.ip_connections.get(ip, 0)
+                if count >= 5:  # max 5 connections per IP
+                    conn.close()
+                    continue
+                self.ip_connections[ip] = count + 1
+
+            # 🚫 TLS HANDSHAKE LIMITER (NEW)
+            with self.connections_lock:
+                if self.pending_handshakes >= self.MAX_HANDSHAKES:
+                    conn.close()
+                    self.ip_connections[ip] -= 1
+                    if self.ip_connections[ip] <= 0:
+                        del self.ip_connections[ip]
+                    continue
+                self.pending_handshakes += 1
+
+            # 🔐 TLS handshake
+            try:
+                conn = context.wrap_socket(conn, server_side=True)
+            except Exception:
+                conn.close()
+                with self.connections_lock:
+                    self.pending_handshakes -= 1
+                    self.ip_connections[ip] -= 1
+                    if self.ip_connections[ip] <= 0:
+                        del self.ip_connections[ip]
+                continue
+
+            # ✅ Handshake done → release slot
+            with self.connections_lock:
+                self.pending_handshakes -= 1
+
+            # 🟢 Remove timeout after handshake
+            conn.settimeout(None)
+
+            # 🌐 Global connection limit
+            with self.connections_lock:
+                if self.active_connections >= self.MAX_CLIENTS:
+                    conn.close()
+                    self.ip_connections[ip] -= 1
+                    if self.ip_connections[ip] <= 0:
+                        del self.ip_connections[ip]
+                    continue
+                self.active_connections += 1
+
+            # 🧠 Optional: slow down under heavy load
+            if self.active_connections > self.MAX_CLIENTS * 0.8:
+                time.sleep(0.01)
+
+            # 🚀 Handle client in thread pool
+            def client_wrapper(conn, addr):
+                try:
+                    self.tcp_thread(conn, addr)
+                finally:
+                    # 🔻 Cleanup when client disconnects
+                    ip = addr[0]
+                    with self.connections_lock:
+                        self.active_connections -= 1
+                        if ip in self.ip_connections:
+                            self.ip_connections[ip] -= 1
+                            if self.ip_connections[ip] <= 0:
+                                del self.ip_connections[ip]
+                    try:
+                        conn.close()
+                    except:
+                        pass
+
+            self.executor.submit(client_wrapper, conn, addr)
+
+    # def tcp_server(self):
+    #     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    #     context.load_cert_chain(certfile="server.crt", keyfile="server.key")
+    #
+    #     tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    #     tcp_sock.bind((self.HOST, self.TCP_PORT))
+    #     tcp_sock.listen()
+    #     self.create_play_rooms(1)
+    #     while True:
+    #         conn, _ = tcp_sock.accept()
+    #
+    #         conn = context.wrap_socket(conn, server_side=True)
+    #         threading.Thread(target=self.tcp_thread, args=(conn,)).start()
+
+    def tcp_thread(self, conn, addr=None):
+        try:
+            username = conn.recv(128).decode()
+            i = 0
+            while self.room_manager.usernames.get(username):
+                username += f"_{i}"
+        except Exception as e:
+            print("TCP recv failed during login", e)
+            conn.close()
+            return
+
+        with self.clients_lock:
+            cid = self.next_id
+            self.next_id += 1
+            token, secret = self.create_session()
+            client = Client(cid, token, secret, username, conn)
+            self.clients[cid] = client
+
+        data = struct.pack(LOGIN_FORMAT, cid, token, secret)
+        conn.send(data)
+        conn.settimeout(None)
+        while True:
+            try:
+                data = conn.recv(256).decode()
+                if not data:
+                    break
+
+                cmd = data.split()
+
+                if cmd[0] == "CREATE":
+                    self.create_new_room(client, conn)
+
+                elif cmd[0] == "JOIN":
+                    ok = self.room_manager.join_room(cmd[1], client)
+                    conn.send(b"JOINED" if ok else b"FAILED")
+
+                elif cmd[0] == "find_room":
+                    conn.send(b"1")
+
+                elif cmd[0] == "logout":
+                    with self.clients_lock:
+                        if cid in self.clients:
+                            self.clients[cid].log_out()
+                            self.clients.pop(cid, None)
+
+                    conn.send(b"LOGGED_OUT")
+                    conn.close()
+                    break
+
+                elif cmd[0] == "respawn":
+                    if client.room:
+                        client.last_seen = time.perf_counter()
+                        client.game_object.ServerController.total_pitch = 0
+                        client.game_object.ServerController.total_yaw = 0
+                        client.game_object.Player.respawn()
+                        client.room.Camera.add_child(client.game_object)
+                        conn.send(b"respawned")
+                        client.room.broadcast(Tcp.respawn(cid), self.udp)
+                    else:
+                        conn.send(b"FAILED")
+
+                elif cmd[0] == "despawn":
+                    if client.room:
+                        client.game_object.destroy()
+                        conn.send(b"despawned")
+                        client.room.broadcast(Tcp.despawn(client.id), self.udp)
+                    else:
+                        conn.send(b"FAILED")
+
+                elif cmd[0] == "leave":
+                    if client.room:
+                        client.log_out()
+                        conn.send(b"left")
+                    else:
+                        conn.send(b"FAILED")
+
+                elif cmd[0] == "CHAT":
+                    msg = cmd[1]
+                    if client.room:
+                        for c in client.room.clients:
+                            if c != client:
+                                try:
+                                    c.tcp_addr.sendall(msg.encode())
+                                except Exception as e:
+                                    print(f"could not send msg {e}")
+            except Exception as e:
+                print("TCP thread error for client", client.username, e)
+                break
+
+        conn.close()
 
 
-def respawn(cid):
-    return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
+class Udp:
+    @staticmethod
+    def despawn(cid):
+        return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
+
+    @staticmethod
+    def verify_signature(data, received_signature, secret):
+        expected_signature = hmac.new(secret, data, hashlib.sha256).digest()
+
+        return hmac.compare_digest(expected_signature, received_signature)
+
+    def movement(self, raw_data, addr):
+        data_bytes = raw_data[:-SIGNATURE_SIZE]
+        received_sig = raw_data[-SIGNATURE_SIZE:]
+        data = struct.unpack(CLIENT_PACK_FORMAT, data_bytes)[1:]
+        cid, token, seq, keys, dx, dy, timestamp = data
+
+        with self.clients_lock:
+            client = self.clients.get(cid)
+        if not client:
+            return
+        room = client.room
+        if not room:
+            return
+
+        if not client.verify_token(token):
+            return
+
+        if not Udp.verify_signature(data_bytes, received_sig, client.get_secret()):
+            print("Invalid signature")
+            return
+
+        if not client.verify_seq(seq):
+            return
+
+        client.update_seq(seq)
+
+        client.udp_addr = addr
+        client.last_seen = time.perf_counter()
+
+        try:
+            client.ServerController.input_queue.append((keys, dx, dy))
+
+        except Exception as e:
+            print("Input controller error", e)
+
+    def __init__(self, room_manager, clients, clients_lock):
+        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp.bind(("0.0.0.0", 5001))
+        self.clients = clients
+        self.clients_lock = clients_lock
+        self.room_manager = room_manager
+        self.room_manager_lock = self.room_manager.room_manager_lock
+
+        # VERY IMPORTANT
+        self.udp.setblocking(False)
+
+    def pong(self, raw_data, addr):
+        data_bytes = raw_data[:-SIGNATURE_SIZE]
+        received_sig = raw_data[-SIGNATURE_SIZE:]
+        data = struct.unpack(PING_FORMAT + SIGNATURE_FORMAT, raw_data)[1:]
+        cid, token, seq, timestamp, signature = data
+
+        with self.clients_lock:
+            client = self.clients.get(cid)
+        if not client:
+            return
+        if not client.verify_token(token):
+            return
+        if not Udp.verify_signature(data_bytes, received_sig, client.get_secret()):
+            print("Invalid signature")
+            return
+
+        pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
+        client.last_seen = time.perf_counter()
+        try:
+            self.udp.sendto(pong, addr)
+        except Exception as e:
+            print("Failed to send pong", e)
+
+    def udp_server(self):
+        last_broadcast_all = time.perf_counter()
+
+        while True:
+            # ---------------------------------
+            # WAIT FOR PACKETS with short timeout (responsive but not busy-wait)
+            # ---------------------------------
+            readable, _, _ = select.select([self.udp], [], [], 0.005)  # 5ms timeout
+
+            if readable:
+                try:
+                    while True:  # drain all waiting packets
+                        try:
+                            data, addr = self.udp.recvfrom(1024)
+                        except BlockingIOError:
+                            break
+                        except Exception as e:
+                            # print("UDP recv error", e)
+                            break
+
+                        try:
+                            ptype_val = struct.unpack("!B", data[:1])[0]
+                        except struct.error:
+                            continue
+
+                        if ptype_val == PacketType.PING:
+                            try:
+                                self.pong(data, addr)
+                            except struct.error:
+                                print("could not receive ping")
+                                continue
+
+                        elif ptype_val == PacketType.INPUT:
+                            try:
+                                self.movement(data, addr)
+                            except struct.error:
+                                continue
 
 
-def generate_token():
-    token = secrets.token_bytes(16)
-    with room_manager_lock:
-        rooms_copy = list(room_manager.rooms.values())
-    for room in rooms_copy:
-        for client in room.clients:
-            if client.verify_token(token):
-                return generate_token()
-    return token
+
+                except Exception as e:
+                    print("Packet processing error", e)
+
+            # ---------------------------------
+            # BROADCAST GAME STATE (fixed 60 Hz tick)
+            # ---------------------------------
+            SERVER_TICK = 1 / 60  # 60 Hz = ~16.67ms between broadcasts
+            now = time.perf_counter()
+            if now - last_broadcast_all > SERVER_TICK:
+                try:
+                    with self.room_manager_lock:
+                        rooms_copy = list(self.room_manager.rooms.values())
+
+                    for room in rooms_copy:
+                        # broadcast all clients in this room to each other
+                        for client in room.clients:
+                            if not client.udp_addr:
+                                continue
+
+                            position = client.game_object.position
+                            rotation = client.game_object.quaternion
+                            velocity = client.game_object.Rigidbody.velocity
+
+                            data = struct.pack(STATE_FORMAT, PacketType.STATE,
+                                               client.id,
+                                               position.x, position.y, position.z,
+                                               rotation.w, rotation.x, rotation.y, rotation.z,
+                                               velocity.x, velocity.y, velocity.z,
+                                               )
+                            room.broadcast(data, self.udp)  # broadcast to everyone
+
+                except Exception as e:
+                    print("Broadcast error", e)
+
+                last_broadcast_all = now
+            try:
+                with self.room_manager_lock:
+                    rooms_copy = list(self.room_manager.rooms.values())
+
+                for room in rooms_copy:
+                    # broadcast all clients in this room to each other
+                    for client in room.clients:
+                        if not client.udp_addr:
+                            continue
+
+                        queue = client.game_object.ClientHelper.messages_queue
+                        if queue:
+                            try:
+                                self.udp.sendto(queue.pop(), client.udp_addr)
+                            except Exception as e:
+                                print("Failed to send update message from server", e)
+
+                logout_queue = ClientHelper.logout_deque
+                # if logout_queue:
+                #     try:
+                #         client = logout_queue.pop()
+                #         room = client.room
+                #         room.broadcast(Udp.despawn(client.id), udp)
+                #         client.log_out()
+                #     except Exception as e:
+                #         print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)
+
+            except Exception as e:
+                print("Updating error", e)
 
 
-def create_session():
-    return generate_token(), secrets.token_bytes(32)
+class Server:
+    def __init__(self):
+        self.clients = {}
+        self.clients_lock = threading.Lock()
 
+    def run(self):
+        manager = RoomManager()
+        udp = Udp(manager, self.clients, self.clients_lock)
+        tcp = Tcp(manager, self.clients, self.clients_lock, udp.udp)
+        # start networking threads as daemons so they exit when main thread stops
+        threading.Thread(target=tcp.tcp_server, daemon=True).start()
+        threading.Thread(target=udp.udp_server, daemon=True).start()
 
-def verify_signature(data, received_signature, secret):
-    expected_signature = hmac.new(secret, data, hashlib.sha256).digest()
-
-    return hmac.compare_digest(expected_signature, received_signature)
+        print("Server running")
+        try:
+            # keep the main thread alive until interrupted
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("Shutting down server...")
+            # sockets will close automatically when program exits
 
 
 class Client:
@@ -79,8 +504,9 @@ class Client:
         return self._secret
 
     def log_out(self):
-        self.room.remove_client(self)
-
+        if self.room:
+            self.room.remove_client(self)
+        del self
     def verify_token(self, token):
         if hmac.compare_digest(self._token, token):
             if time.process_time() - self._session_time < SESSION_TIMEOUT:
@@ -101,7 +527,6 @@ class Client:
         self._secret = secret
         self._seq = 0
         self._session_time = time.perf_counter()
-
 
 
 class Room:
@@ -127,7 +552,7 @@ class Room:
 
             # Clear the client's room reference
             client.room = None
-        if not self.clients and not room_manager.is_default_room(self):
+        if not self.clients and not self.room_manager.is_default_room(self):
             # no more players: shut down the physics world
             try:
                 if hasattr(self.Camera, 'World'):
@@ -139,17 +564,7 @@ class Room:
             self.room_manager.remove_room(self.password)
 
     def broadcast(self, data, udp):
-        """Send *data* to every client in the room.
-
-        If *sender* is provided the packet is not echoed back to that
-        address; pass None to broadcast to everyone (including the origin).
-        """
         for c in self.clients:
-            # if not c.udp_addr:
-            #     continue
-            # if sender is not None and c.udp_addr == sender:
-            #     # skip the original sender
-            #     continue
             if c.udp_addr:
                 udp.sendto(data, c.udp_addr)
 
@@ -159,12 +574,14 @@ class RoomManager:
         self.rooms = {}
         self.usernames = {}
         self._default_rooms = []
+        self.room_manager_lock = threading.Lock()
 
-    def generate_password(self):
+    @staticmethod
+    def generate_password():
         return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(6))
 
     def create_room(self, owner=None, pwd=None):
-        with room_manager_lock:
+        with self.room_manager_lock:
             if not pwd:
                 pwd = self.generate_password()
             # pwd = "0" # temp for testing
@@ -172,7 +589,7 @@ class RoomManager:
             if pwd in self.rooms:
                 return None
 
-            room = Room(pwd, room_manager)
+            room = Room(pwd, self)
             self.rooms[pwd] = room
             if owner:
                 owner.last_seen = time.perf_counter()
@@ -184,7 +601,7 @@ class RoomManager:
             return pwd
 
     def join_room(self, pwd, client):
-        with room_manager_lock:
+        with self.room_manager_lock:
             room = self.rooms.get(pwd)
             if not room:
                 return False
@@ -195,7 +612,7 @@ class RoomManager:
             return True
 
     def remove_room(self, room_password):
-        with room_manager_lock:
+        with self.room_manager_lock:
             room = self.rooms.get(room_password)
             if not room:
                 return
@@ -217,338 +634,6 @@ class RoomManager:
         return room in self._default_rooms
 
 
-# =====================
-
-room_manager = RoomManager()
-next_id = 1
-
-
-# =====================
-# TCP
-# =====================
-
-def create_new_room(client, conn):
-    pwd = room_manager.create_room(client)
-    client.last_seen = time.perf_counter()
-    if pwd:
-        conn.send(f"created a room with this password {pwd}".encode())
-    else:
-        conn.send(b"EXISTS")
-
-
-
-def tcp_thread(conn):
-    global next_id
-
-    try:
-        username = conn.recv(128).decode()
-        i = 0
-        while room_manager.usernames.get(username):
-            username += f"_{i}"
-    except Exception as e:
-        print("TCP recv failed during login", e)
-        conn.close()
-        return
-
-    with clients_lock:
-        cid = next_id
-        next_id += 1
-        token, secret = create_session()
-        client = Client(cid, token, secret, username, conn)
-        clients[cid] = client
-
-    data = struct.pack(LOGIN_FORMAT, cid, token, secret)
-    conn.send(data)
-
-    while True:
-        try:
-            data = conn.recv(256).decode()
-            if not data:
-                break
-
-            cmd = data.split()
-
-            if cmd[0] == "CREATE":
-                create_new_room(client, conn)
-
-            elif cmd[0] == "JOIN":
-                ok = room_manager.join_room(cmd[1], client)
-                conn.send(b"JOINED" if ok else b"FAILED")
-
-            elif cmd[0] == "find_room":
-                conn.send(b"1")
-
-            elif cmd[0] == "logout":
-                with clients_lock:
-                    if cid in clients:
-                        # del clients[cid]
-                        clients[cid].log_out()
-
-                conn.send(b"LOGGED_OUT")
-                conn.close()
-                break
-
-            elif cmd[0] == "respawn":
-                if client.room:
-                    client.last_seen = time.perf_counter()
-                    client.game_object.ServerController.total_pitch = 0
-                    client.game_object.ServerController.total_yaw = 0
-                    client.game_object.Player.respawn()
-                    client.room.Camera.add_child(client.game_object)
-                    conn.send(b"respawned")
-                    client.room.broadcast(respawn(cid), udp)
-                else:
-                    conn.send(b"FAILED")
-
-            elif cmd[0] == "despawn":
-                if client.room:
-                    client.game_object.destroy()
-                    conn.send(b"despawned")
-                    client.room.broadcast(despawn(client.id), udp)
-                else:
-                    conn.send(b"FAILED")
-
-            elif cmd[0] == "leave":
-                if client.room:
-                    client.log_out()
-                    conn.send(b"left")
-                else:
-                    conn.send(b"FAILED")
-
-            elif cmd[0] == "CHAT":
-                msg = cmd[1]
-                if client.room:
-                    for c in client.room.clients:
-                        if c != client:
-                            try:
-                                c.tcp_addr.sendall(msg.encode())
-                            except Exception as e:
-                                print(f"could not send msg {e}")
-        except Exception as e:
-            print("TCP thread error for client", client.username, e)
-            break
-
-    conn.close()
-
-
-def tcp_server():
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(certfile="server.crt", keyfile="server.key")
-
-    tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_sock.bind((HOST, TCP_PORT))
-    tcp_sock.listen()
-    create_play_rooms(1)
-    while True:
-        conn, _ = tcp_sock.accept()
-
-        conn = context.wrap_socket(conn, server_side=True)
-        threading.Thread(target=tcp_thread, args=(conn,)).start()
-
-
-def create_play_rooms(num):
-    for i in range(num):
-        pwd = room_manager.create_room(pwd=str(i + 1))
-        room_manager.add_default_room(pwd)
-
-
-# =====================
-# UDP
-# =====================
-
-udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-udp.bind(("0.0.0.0", 5001))
-
-# VERY IMPORTANT
-udp.setblocking(False)
-
-MAX_PACKETS_PER_TICK = 200
-
-
-def pong(raw_data, addr):
-    data_bytes = raw_data[:-SIGNATURE_SIZE]
-    received_sig = raw_data[-SIGNATURE_SIZE:]
-    data = struct.unpack(PING_FORMAT + SIGNATURE_FORMAT, raw_data)[1:]
-    cid, token, seq, timestamp, signature = data
-
-
-    with clients_lock:
-        client = clients.get(cid)
-    if not client:
-        return
-    if not client.verify_token(token):
-        return
-    if not verify_signature(data_bytes, received_sig, client.get_secret()):
-        print("Invalid signature")
-        return
-
-
-
-
-    pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
-    client.last_seen = time.perf_counter()
-    try:
-        udp.sendto(pong, addr)
-    except Exception as e:
-        print("Failed to send pong", e)
-
-
-def movement(raw_data, addr):
-    data_bytes = raw_data[:-SIGNATURE_SIZE]
-    received_sig = raw_data[-SIGNATURE_SIZE:]
-    data = struct.unpack(CLIENT_PACK_FORMAT, data_bytes)[1:]
-    cid, token, seq, keys, dx, dy, timestamp = data
-
-    with clients_lock:
-        client = clients.get(cid)
-    if not client:
-        return
-    room = client.room
-    if not room:
-        return
-
-    if not client.verify_token(token):
-        return
-
-    if not verify_signature(data_bytes, received_sig, client.get_secret()):
-        print("Invalid signature")
-        return
-
-    if not client.verify_seq(seq):
-        return
-
-    client.update_seq(seq)
-
-    client.udp_addr = addr
-    client.last_seen = time.perf_counter()
-
-    try:
-        client.ServerController.input_queue.append((keys, dx, dy))
-
-    except Exception as e:
-        print("Input controller error", e)
-
-
-def udp_server():
-    last_broadcast_all = time.perf_counter()
-
-    while True:
-        # ---------------------------------
-        # WAIT FOR PACKETS with short timeout (responsive but not busy-wait)
-        # ---------------------------------
-        readable, _, _ = select.select([udp], [], [], 0.005)  # 5ms timeout
-
-        if readable:
-            try:
-                while True:  # drain all waiting packets
-                    try:
-                        data, addr = udp.recvfrom(1024)
-                    except BlockingIOError:
-                        break
-                    except Exception as e:
-                        # print("UDP recv error", e)
-                        break
-
-                    try:
-                        ptype_val = struct.unpack("!B", data[:1])[0]
-                    except struct.error:
-                        continue
-
-                    if ptype_val == PacketType.PING:
-                        try:
-                            pong(data, addr)
-                        except struct.error:
-                            print("could not receive ping")
-                            continue
-
-                    elif ptype_val == PacketType.INPUT:
-                        try:
-                            movement(data, addr)
-                        except struct.error:
-                            continue
-
-
-
-            except Exception as e:
-                print("Packet processing error", e)
-
-        # ---------------------------------
-        # BROADCAST GAME STATE (fixed 60 Hz tick)
-        # ---------------------------------
-        SERVER_TICK = 1 / 60  # 60 Hz = ~16.67ms between broadcasts
-        now = time.perf_counter()
-        if now - last_broadcast_all > SERVER_TICK:
-            try:
-                with room_manager_lock:
-                    rooms_copy = list(room_manager.rooms.values())
-
-                for room in rooms_copy:
-                    # broadcast all clients in this room to each other
-                    for client in room.clients:
-                        if not client.udp_addr:
-                            continue
-
-                        position = client.game_object.position
-                        rotation = client.game_object.quaternion
-                        velocity = client.game_object.Rigidbody.velocity
-
-                        data = struct.pack(STATE_FORMAT, PacketType.STATE,
-                                           client.id,
-                                           position.x, position.y, position.z,
-                                           rotation.w, rotation.x, rotation.y, rotation.z,
-                                           velocity.x, velocity.y, velocity.z,
-                                           )
-                        room.broadcast(data, udp)  # broadcast to everyone
-
-            except Exception as e:
-                print("Broadcast error", e)
-
-            last_broadcast_all = now
-        try:
-            with room_manager_lock:
-                rooms_copy = list(room_manager.rooms.values())
-
-            for room in rooms_copy:
-                # broadcast all clients in this room to each other
-                for client in room.clients:
-                    if not client.udp_addr:
-                        continue
-
-                    queue = client.game_object.ClientHelper.messages_queue
-                    if queue:
-                        try:
-                            udp.sendto(queue.pop(), client.udp_addr)
-                        except Exception as e:
-                            print("Failed to send update message from server", e)
-
-            logout_queue = ClientHelper.logout_deque
-            if logout_queue:
-                try:
-                    client = logout_queue.pop()
-                    room = client.room
-                    room.broadcast(despawn(client.id), udp)
-                    client.log_out()
-                except Exception as e:
-                    print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)
-
-        except Exception as e:
-            print("Updating error", e)
-
-
-def main():
-    # start networking threads as daemons so they exit when main thread stops
-    threading.Thread(target=tcp_server, daemon=True).start()
-    threading.Thread(target=udp_server, daemon=True).start()
-
-    print("Server running")
-    try:
-        # keep the main thread alive until interrupted
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Shutting down server...")
-        # sockets will close automatically when program exits
-
-
 if __name__ == "__main__":
-    main()
+    server = Server()
+    server.run()

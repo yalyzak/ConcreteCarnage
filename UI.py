@@ -117,7 +117,7 @@ class HomeUI(AbstractUI):
         super().Start()
         self.setup_layout()
         self.client.name = self._user_name
-
+        self.client.login()
         # for comp in self.parent.components.values():
         #     comp.Active = False
         self.Active = True
@@ -223,7 +223,7 @@ class HomeUI(AbstractUI):
             self.activateSettingslayout()
 
     def activatePlaylayout(self):
-        self.client.login()  #
+        # self.client.login()  #
         pwd = self.client.find_room()
         self.client.join_room(pwd)
         self.Active = False
@@ -657,10 +657,10 @@ class PlayWithFriendsUI(AbstractUI):
         elif button == self.code_box:
             self.EnterCode()
         elif button == self.join_button:
-            self.client.login()
+            # self.client.login()
             self.joinRoom()
         elif button == self.create_button:
-            self.client.login()
+            # self.client.login()
             self.CreatRoom()
 
     def CreatRoom(self):
@@ -852,7 +852,7 @@ class PlayUI(AbstractUI):
         self.show = False
         self.render.flush_ui()
         self.parent.HomeUI.Active = True
-        self.client.logout()
+        self.client.leave_room()
 
     def activateGamelayout(self):
         self.Active = False

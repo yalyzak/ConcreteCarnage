@@ -9,6 +9,7 @@ class PacketType(IntEnum):
     DAMAGE = 5
     RESPAWN = 6
     DESPAWN = 7
+    CREATE = 8
 
 # struct formats for packets
 

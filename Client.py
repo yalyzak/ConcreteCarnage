@@ -136,11 +136,7 @@ class Client:
         self.tcp.send(b"leave")
         response = self.tcp.recv(128).decode()
         print(response)
-        # Extract password from response
-        if "password" in response:
-            pwd = response.split()[-1]
-            return pwd
-        return None
+
 
     def respawn(self):
         self.tcp.send(b"respawn")
@@ -149,11 +145,7 @@ class Client:
         self.parent.Player.respawn()
         response = self.tcp.recv(128).decode()
         print(response)
-        # Extract password from response
-        if "password" in response:
-            pwd = response.split()[-1]
-            return pwd
-        return None
+
 
     def despawn(self):
         self.tcp.send(b"despawn")
@@ -364,29 +356,13 @@ if __name__ == "__main__":
     c = Client("Player1")
     c.login()
     psw = c.find_room()
-    c.join_room("0")
-    # c.respawn()
-    # pwd = c.create_room()
-    time.sleep(1)
-    # c.join_room(pwd)
-    # c.respawn()
-    start = time.perf_counter()
-    # c.send_chat("gg")
-    # while True:
-    #     c.receive_chat()
-
-    for i in range(5):
-        c.send_ping()
-        time.sleep(1)
-    # c.despawn()
-    c.logout()
-    # c.send_ping()
-    # time.sleep(1)
-    # c.logout()
-    # time.sleep(1)
-    # c.login()
-    # pwd = c.create_room()
-    # while True:
-    #     c.send_ping()
-    #     time.sleep(2)
-
+    c.join_room(psw)
+#     time.sleep(1)
+#
+#     start = time.perf_counter()
+#
+#     for i in range(5):
+#         c.send_ping()
+#         time.sleep(1)
+#
+#     c.logout()
