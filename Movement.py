@@ -6,21 +6,22 @@ from bereshit import Quaternion, Vector3
 CENTER_X = 960
 CENTER_Y = 540
 class Recorder:
-    def __init__(self, keys):
+    def __init__(self, keys, enable_hooks=True):
         self.keys = keys
         self.state = {k: False for k in keys}
         self.state["mouse_left"] = False
         self.state["mouse_right"] = False
-
-        keyboard.hook(self._keyboard_event)
-        mouse.hook(self._mouse_event)
+        # self.mouse = self.parent.World.Camera.Camera.render.mouse_input
+        if enable_hooks:
+            keyboard.hook(self._keyboard_event)
+        #     mouse.hook(self._mouse_event)
 
     def _keyboard_event(self, event):
         if event.name in self.state:
             self.state[event.name] = (event.event_type == "down")
 
     def _mouse_event(self, event):
-        if isinstance(event, mouse.ButtonEvent):
+        if hasattr(event, "button") and hasattr(event, "event_type"):
             if event.button == "left":
                 self.state["mouse_left"] = (event.event_type == "down")
             elif event.button == "right":
@@ -125,11 +126,12 @@ class PlayerController(Controller):
         mouse.move(CENTER_X, CENTER_Y)
         self.Active = False
         self.recorder = Recorder(self.keys)
+        self.mouse = self.parent.World.Camera.Camera.render.get_mouse_input
 
     def Update(self, dt):
-        keys = self.recorder.keyboard_recorder()
+        # keys = self.recorder.keyboard_recorder()
         x, y = self.mouse_recorder()
-        # keys = self.keyboard_recorder()
+        keys = self.keyboard_recorder()
         self.keyboard_controller(keys, dt)
         self.mouse_controller(x, y)
         self.record_input(keys, x, y)
@@ -142,7 +144,7 @@ class PlayerController(Controller):
             self.input_queue.append([bool_list, dx, dy])
 
     def keyboard_recorder(self):
-        mouse_left = mouse.is_pressed('left')
+        mouse_left = self.mouse()
         mouse_right = mouse.is_pressed('right')
         key_states = [keyboard.is_pressed(k) for k in self.keys] + [mouse_left, mouse_right]
         return key_states
