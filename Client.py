@@ -67,7 +67,7 @@ class Client:
             self.chat_queue.append(msg)
     def Start(self):
         self.parent.World.add_object(self.players)
-        self.Active = False
+        self.Active = True
         # self.login()
         # pwd = self.create_room()
         # self.join_room("0") # temp for testing

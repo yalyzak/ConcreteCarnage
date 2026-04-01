@@ -4,6 +4,9 @@ from ClientHelper import ClientHelper
 from Shoot import Shoot
 from Player import GamePlayer, ServerPlayer
 
+def build_block(position=Vector3(0,0,0), size=Vector3(1,1,1), rotation=Vector3(0,0,0)):
+    return Object(position=position, size=size, rotation=rotation).add_component([BoxCollider(), Rigidbody(isKinematic=True)])
+
 
 def client_map():
     # ========================
@@ -129,103 +132,38 @@ def client_map():
 
 
 def server_map():
-    # ========================
-    # MAIN FLOOR
-    # ========================
+    floor_height = 5
+    ground_height = floor_height * 0.5
+    ground = build_block(size=Vector3(50,1,50), position=Vector3(0,-0.5,0))
 
-    ground = Object(size=Vector3(40, 1, 40)).add_component([BoxCollider(), Rigidbody(isKinematic=True)])
+    building_NW = [build_block(size=Vector3(20,floor_height,1), position=Vector3(15,ground_height,25.5)),
+                   build_block(size=Vector3(1,floor_height,19), position=Vector3(24.5,ground_height,15.5)),
+                   build_block(size=Vector3(4, floor_height, 1), position=Vector3(14, ground_height, 6.5)),
+                   build_block(size=Vector3(5, floor_height, 1), position=Vector3(21.5, ground_height, 6.5)),
+                   build_block(size=Vector3(1, floor_height, 8), position=Vector3(11.5, ground_height, 10)),
+                   build_block(size=Vector3(7,floor_height,1), position=Vector3(8.5,ground_height,14.5)),
+                   build_block(size=Vector3(1, floor_height, 3), position=Vector3(5.5, ground_height, 16.5)),
+                   build_block(size=Vector3(1, floor_height, 4), position=Vector3(5.5, ground_height, 23)),
+                   ]
 
-    # ========================
-    # OUTER WALLS (MAP BORDER)
-    # ========================
+    building_SW = [
+                    build_block(size=Vector3(1, floor_height, 19), position=Vector3(24.5, ground_height, -15.5)),
+                    build_block(size=Vector3(20, floor_height, 1), position=Vector3(15, ground_height, -25.5)),
+                    build_block(size=Vector3(1, floor_height, 6), position=Vector3(5.5, ground_height, -22)),
+                    build_block(size=Vector3(1, floor_height, 5), position=Vector3(5.5, ground_height, -14)),
+                    build_block(size=Vector3(8, floor_height, 1), position=Vector3(10, ground_height, -12)),
+                    build_block(size=Vector3(1, floor_height, 1), position=Vector3(13.5, ground_height, -11)),
+                    build_block(size=Vector3(1, floor_height, 2), position=Vector3(13.5, ground_height, -7)),
+                    build_block(size=Vector3(10, floor_height, 1), position=Vector3(19, ground_height, -6.5)),
 
-    walls = [
-        Object(position=Vector3(0, 5, 20), size=Vector3(40, 10, 1)),
-        Object(position=Vector3(0, 5, -20), size=Vector3(40, 10, 1)),
-        Object(position=Vector3(20, 5, 0), size=Vector3(1, 10, 40)),
-        Object(position=Vector3(-20, 5, 0), size=Vector3(1, 10, 40))
-    ]
+                   ]
 
-    walls = [
-        w.add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-        for w in walls
-    ]
 
-    # ========================
-    # MID LANE WALLS
-    # ========================
-
-    mid_walls = [
-        Object(position=Vector3(0, 2, 0), size=Vector3(2, 4, 12)),
-        Object(position=Vector3(-6, 2, 5), size=Vector3(6, 4, 2)),
-        Object(position=Vector3(6, 2, -5), size=Vector3(6, 4, 2)),
-    ]
-
-    mid_walls = [
-        w.add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-        for w in mid_walls
-    ]
-
-    # ========================
-    # COVER BOXES (CS STYLE)
-    # ========================
-    boxes = [
-        Object(position=Vector3(-10, 1, 10), size=Vector3(2, 2, 4)),
-        Object(position=Vector3(-12, 1, 8), size=Vector3(2, 2, 4), rotation=Vector3(0, 90, 0)),
-        Object(position=Vector3(10, 1, -10), size=Vector3(2, 2, 2)),
-        Object(position=Vector3(12, 1, -8), size=Vector3(2, 2, 2)),
-        Object(position=Vector3(0, 1, 15), size=Vector3(3, 2, 3)),
-        Object(position=Vector3(0, 1, -15), size=Vector3(3, 2, 3)),
-    ]
-
-    boxes = [
-        b.add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-        for b in boxes
-    ]
-
-    # ========================
-    # RAMPS (ELEVATION)
-    # ========================
-
-    ramps = [
-        Object(
-            position=Vector3(-15, 0.5, 0),
-            size=Vector3(10, 1, 10),
-            rotation=Vector3(15, 0, 0)
-        ),
-        Object(
-            position=Vector3(15, 0.5, 0),
-            size=Vector3(10, 1, 10),
-            rotation=Vector3(-15, 0, 0)
-        )
-    ]
-
-    ramps = [
-        r.add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-        for r in ramps
-    ]
-
-    # ========================
-    # BOMB SITE AREAS (OPEN SPACES)
-    # ========================
-
-    siteA = Object(
-        position=Vector3(-15, 0, 15),
-        size=Vector3(10, 1, 10)
-    ).add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-
-    siteB = Object(
-        position=Vector3(15, 0, -15),
-        size=Vector3(10, 1, 10)
-    ).add_component([BoxCollider(), Rigidbody(isKinematic=True)])
-
-    objs = [ground] + walls + mid_walls + boxes + ramps
-
-    return objs
+    return [ground] + building_NW + building_SW
 
 
 def server_game_object(name, client):
-    return Object(name=name, position=Vector3(1, 1, 1)).add_component(
+    return Object(name=name, size=Vector3(1, 2, 1)).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0)),
@@ -249,14 +187,17 @@ def main_game_object(ip="127.0.0.1"):
     from Client import Client
     from UI import UI
     from bereshit import Camera
-    return Object(size=Vector3(1, 2, 1), position=Vector3(5, 2, 0)).add_component(
+    cam = Object(position=Vector3(0,1.8,0)).add_component(Camera(shading="material preview"))
+    player = Object(size=Vector3(1, 1.8, 1), children=[cam]).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True),
-            Camera(shading="material preview"),
+            # Camera(shading="material preview"),
             PlayerController(),
             Client(ip=ip),  # "192.168.1.163"
             Shoot(True),
             UI(),
             GamePlayer(),
+            MeshRander(shape="empty")
         ])
+    return player

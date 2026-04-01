@@ -7,7 +7,7 @@ from bereshit.render import Text,Box
 import copy
 class Shoot:
     def __init__(self, ui):
-        self.CoolDown = 0.1   # seconds between shots
+        self.CoolDown = 0.2   # seconds between shots
         self.timer = 0.0      # time passed since last shot
         self.speed = 10
         self.force = 20
