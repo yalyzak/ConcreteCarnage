@@ -1,6 +1,8 @@
 import os
+
 try:
     import google.generativeai as genai
+
     Genai_AVAILABLE = True
 except ImportError:
     Genai_AVAILABLE = False
@@ -8,13 +10,15 @@ except ImportError:
 
 try:
     from transformers import pipeline
+
     NLP_AVAILABLE = True
 except ImportError:
     NLP_AVAILABLE = False
     print("NLP is not available make sure to install environment.yml")
 
+
 class ContentFilter:
-    def __init__(self,UseGenai=False,UseNLP=False):
+    def __init__(self, UseGenai=False, UseNLP=False):
         self.UseNLP = UseNLP if NLP_AVAILABLE else False
         self.UseGenai = UseGenai if Genai_AVAILABLE else False
 
@@ -25,12 +29,12 @@ class ContentFilter:
         if self.UseNLP:
             self.moderator = pipeline(
                 "text-classification",
-                model="unitary/toxic-bert",   # fine-tuned BERT for toxicity
+                model="unitary/toxic-bert",  # fine-tuned BERT for toxicity
                 return_all_scores=True
             )
-        self.bad_words = {"קללה", "****", "טיפש", "מטומטם","nigga","fuck","ass","nigger"}
+        self.bad_words = {"קללה", "****", "טיפש", "מטומטם", "nigga", "fuck", "ass", "nigger"}
 
-    def nlp_moderate_text(self, message: str, threshold: float = 0.5) -> dict:
+    def nlp_moderate_text(self, message, threshold=0.5):
         """
         NLP-based moderation using Hugging Face toxic-bert model.
         Returns category scores and safe/unsafe flag.
@@ -53,7 +57,19 @@ class ContentFilter:
             "scores": flags,
             "safe": not unsafe
         }
-    def  is_message_clean(self, message):
+
+    def genai_moderate_text(self, message):
+        try:
+            response = self.model.generate_content(
+                f"Is this message inappropriate, offensive, or toxic? '{message}' Answer only yes or no."
+            )
+
+            return "no" in response.text.lower()
+        except Exception as e:
+            print(f"Gemini error: {e}")
+            return True  # Fallback to allow message if Gemini fails
+
+    def is_message_clean(self, message):
 
         if message in self.bad_words:
             return False
@@ -61,13 +77,5 @@ class ContentFilter:
             if self.nlp_moderate_text(message):
                 return False
         if self.UseGenai:
-            try:
-                response = self.model.generate_content(
-                    f"Is this message inappropriate, offensive, or toxic? '{message}' Answer only yes or no."
-                )
-
-                return "no" in response.text.lower()
-            except Exception as e:
-                print(f"Gemini error: {e}")
-                return True  # Fallback to allow message if Gemini fails
+            self.genai_moderate_text(message)
         return True

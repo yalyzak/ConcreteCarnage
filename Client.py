@@ -25,6 +25,7 @@ class Client:
         self.logged_in = False
         self.server_ip = ip
         self._seq = 0
+        self.__max_players = 5
 
         context = ssl.create_default_context()
         self.context = ssl._create_unverified_context()
@@ -271,8 +272,9 @@ class Client:
                     player.position = server_pos
                     player.Rigidbody.velocity = server_vel
                 else: # tobe removed
-                    self.players.add_child(client_game_object(player_id, server_pos, server_vel))
-                    print("new player joined")
+                    if len(self.players.children) < self.__max_players:
+                        self.players.add_child(client_game_object(player_id, server_pos, server_vel))
+                        print("new player joined")
 
         elif ptype == PacketType.DAMAGE:
             try:

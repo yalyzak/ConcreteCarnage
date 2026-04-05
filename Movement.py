@@ -37,9 +37,11 @@ class Controller:
     def __init__(self, speed=5, sensitivity=0.1):
         self.force_amount = speed
         self.force_amount = 10
-
+        self.jump_speed = 50
+        self.isGrounded = False
+        self.max_velocity = 9.8
         self.sensitivity = sensitivity
-
+        self.max_speed = 5
         self.total_pitch = 0.0
         self.total_yaw = 0.0
         self.sendt = 0
@@ -56,42 +58,106 @@ class Controller:
             'space',
             'left shift'
         ]
+    def attach(self, other):
+        self.rb = other.Rigidbody
+
+    def OnCollisionStay(self, other):
+        if self.isGrounded:
+            return
+        if other.parent.get_component("Ground"):
+            self.isGrounded = True
+
+    def OnCollisionEnter(self, other):
+        if self.isGrounded:
+            return
+        if other.parent.get_component("Ground"):
+            self.isGrounded = True
+
+    def OnCollisionExit(self, other):
+        if other.parent.get_component("Ground"):
+            self.isGrounded = False
 
     def keyboard_controller(self, keys, dt):
 
+
         if keys[0]:
-
-
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
             forward = Vector3(forward.x, 0, forward.z).normalized()
 
-            self.parent.Rigidbody.velocity += forward * self.force_amount * dt
+            horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
+
+            # add acceleration
+            horizontal += forward * self.force_amount * dt
+
+            # clamp horizontal speed
+            if horizontal.magnitude() > self.max_speed:
+                horizontal = horizontal.normalized() * self.max_speed
+
+            # keep vertical velocity untouched
+            self.rb.velocity = Vector3(horizontal.x, self.rb.velocity.y, horizontal.z)
+
+            # self.rb.velocity += forward * self.force_amount * dt
         if keys[1]:
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
             backward = Vector3(backward.x, 0, backward.z).normalized()
-            self.parent.Rigidbody.velocity += backward * self.force_amount * dt
+
+            horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
+
+            # add acceleration
+            horizontal += backward * self.force_amount * dt
+
+            # clamp horizontal speed
+            if horizontal.magnitude() > self.max_speed:
+                horizontal = horizontal.normalized() * self.max_speed
+
+            # keep vertical velocity untouched
+            self.rb.velocity = Vector3(horizontal.x, self.rb.velocity.y, horizontal.z)
 
         if keys[2]:
             right = self.parent.quaternion.rotate(Vector3(1, 0, 0))
             right = Vector3(right.x, 0, right.z).normalized()
-            self.parent.Rigidbody.velocity += right * self.force_amount * dt
+            horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
+
+            # add acceleration
+            horizontal += right * self.force_amount * dt
+
+            # clamp horizontal speed
+            if horizontal.magnitude() > self.max_speed:
+                horizontal = horizontal.normalized() * self.max_speed
+
+            # keep vertical velocity untouched
+            self.rb.velocity = Vector3(horizontal.x, self.rb.velocity.y, horizontal.z)
 
         if keys[3]:
             left = self.parent.quaternion.rotate(Vector3(-1, 0, 0))
             left = Vector3(left.x, 0, left.z).normalized()
-            self.parent.Rigidbody.velocity += left * self.force_amount * dt
+            self.rb.velocity += left * self.force_amount * dt
+            horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
+
+            # add acceleration
+            horizontal += left * self.force_amount * dt
+
+            # clamp horizontal speed
+            if horizontal.magnitude() > self.max_speed:
+                horizontal = horizontal.normalized() * self.max_speed
+
+            # keep vertical velocity untouched
+            self.rb.velocity = Vector3(horizontal.x, self.rb.velocity.y, horizontal.z)
+
+        if not self.isGrounded:
+            keys[4] = False
 
         if keys[4]:
-            self.parent.Rigidbody.velocity += Vector3(
+            self.rb.velocity += Vector3(
                 0,
-                self.force_amount * 2,
+                self.jump_speed * 2,
                 0
             ) * dt
 
         if keys[5]:
-            self.parent.Rigidbody.velocity -= Vector3(
+            self.rb.velocity -= Vector3(
                 0,
-                self.force_amount * 2,
+                self.jump_speed * 2,
                 0
             ) * dt
 
