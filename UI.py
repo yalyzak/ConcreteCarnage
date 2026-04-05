@@ -701,6 +701,7 @@ class PlayUI(AbstractUI):
         super().Start()
 
     def setup_layout(self):
+        self.client.Active = False
         # Dark overlay background
         self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.6, layer=5)
         # self.render.add_ui_rect(self.background)
@@ -827,7 +828,7 @@ class PlayUI(AbstractUI):
             self.activateMenulayout()
         elif button == self.chat_input_box:
             if self.get_pressed_keys(self.chat_input):
-                if chat_filter.is_message_clean(self.chat_input.text):
+                if True:
                     self.client.send_chat(self.chat_input.text)
                     self.add_chat_message(self.chat_input.text)
                     # self.client.send_massage(self.chat_input.text)

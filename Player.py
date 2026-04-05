@@ -62,7 +62,9 @@ class ServerPlayer(Player):
 
     def Hit(self, hp):
         self._HP -= hp
-        self.parent.ClientHelper.send(self.damage_message())
-        # if self._HP <= 0:#d
+        self.parent.ClientHelper.send_udp(self.damage_message())
+        if self._HP <= 0:
+            self.despawn() # need better securty so player wouldnt be abele to keep playing
+
         #     self.parent.ClientHelper.dead()
 

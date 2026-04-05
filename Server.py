@@ -8,11 +8,12 @@ import string
 import select
 import ssl
 import secrets
+import time
 
 from bereshit import Object, Vector3, Camera, Core
 from MAP import server_map, server_game_object
 from ClientHelper import ClientHelper
-import time
+from ContentFilter import ContentFilter
 
 from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT, \
     LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT
@@ -232,7 +233,7 @@ class Tcp:
                         client.game_object.Player.respawn()
                         client.room.Camera.add_child(client.game_object)
                         conn.send(b"respawned")
-                        client.room.broadcast(Tcp.respawn(cid), self.udp)
+                        client.room.broadcast_udp(Tcp.respawn(cid), self.udp)
                     else:
                         conn.send(b"FAILED")
 
@@ -240,7 +241,7 @@ class Tcp:
                     if client.room:
                         client.game_object.destroy()
                         conn.send(b"despawned")
-                        client.room.broadcast(Tcp.despawn(client.id), self.udp)
+                        client.room.broadcast_udp(Tcp.despawn(client.id), self.udp)
                     else:
                         conn.send(b"FAILED")
 
@@ -254,17 +255,14 @@ class Tcp:
                 elif cmd[0] == "CHAT":
                     msg = cmd[1]
                     if client.room:
-                        for c in client.room.clients:
-                            if c != client:
-                                try:
-                                    c.tcp_addr.sendall(msg.encode())
-                                except Exception as e:
-                                    print(f"could not send msg {e}")
+                        client.room.send_chat(msg)
             except Exception as e:
                 print("TCP thread error for client", client.username, e)
                 break
 
         conn.close()
+
+
 
 
 class Udp:
@@ -398,7 +396,8 @@ class Udp:
                 last_broadcast_all = now
             try:
                 self.logout()
-                self.chat()
+                self.shoot()
+                # self.send_chat()
             except Exception as e:
                 print("logout error", e)
 
@@ -422,13 +421,13 @@ class Udp:
                                    rotation.w, rotation.x, rotation.y, rotation.z,
                                    velocity.x, velocity.y, velocity.z,
                                    )
-                room.broadcast(data, self.udp)  # broadcast to everyone
-    def chat(self):
+                room.broadcast_udp(data, self.udp)  # broadcast to everyone
+
+    def shoot(self):
         with self.room_manager_lock:
             rooms_copy = list(self.room_manager.rooms.values())
 
         for room in rooms_copy:
-            # broadcast all clients in this room to each other
             for client in room.clients:
                 if not client.udp_addr:
                     continue
@@ -439,6 +438,7 @@ class Udp:
                         self.udp.sendto(queue.pop(), client.udp_addr)
                     except Exception as e:
                         print("Failed to send update message from server", e)
+
 
     def logout(self):
         return  # this is not in use right now
@@ -463,7 +463,7 @@ class Udp:
             try:
                 client = logout_queue.pop()
                 room = client.room
-                room.broadcast(Udp.despawn(client.id), self.udp)
+                room.broadcast_udp(Udp.despawn(client.id), self.udp)
                 client.log_out()
             except Exception as e:
                 print(f"Failed to logout a player! id: {client.id} username: {client.username}", e)
@@ -538,6 +538,7 @@ class Client:
 
 
 class Room:
+    chat_filter = ContentFilter()
     def __init__(self, password, room_manager):
         self.password = password
         self.clients = []
@@ -571,11 +572,22 @@ class Room:
             # remove from manager
             self.room_manager.remove_room(self.password)
 
-    def broadcast(self, data, udp):
+    def broadcast_udp(self, data, udp):
         for c in self.clients:
             if c.udp_addr:
                 udp.sendto(data, c.udp_addr)
 
+    def broadcast_tcp(self, data):
+        for client in self.clients:
+            client.tcp_addr.send(data)
+
+    def send_chat(self, msg):
+        try:
+            if not Room.chat_filter.is_message_clean(msg):
+                msg = Room.chat_filter.censor(msg)
+            self.broadcast_tcp(msg.encode())
+        except Exception as e:
+            print("Failed to send update message from server", e)
 
 class RoomManager:
     def __init__(self):

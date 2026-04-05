@@ -8,12 +8,16 @@ class ClientHelper:
     def __init__(self, client):
         self._client = client
         self.messages_queue = deque(maxlen=20)
+        self.chat_queue = deque(maxlen=10)
 
     def last_seen(self):
         return self._client.last_seen
 
-    def send(self, message):
+    def send_udp(self, message):
         self.messages_queue.append(message)
+
+    def broadcast_tcp(self, message):
+        self.chat_queue.append(message)
 
     def dead(self):
         ClientHelper.logout_deque.append(self._client)
