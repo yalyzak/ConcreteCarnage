@@ -398,6 +398,7 @@ class Udp:
                 last_broadcast_all = now
             try:
                 self.logout()
+                self.chat()
             except Exception as e:
                 print("logout error", e)
 
@@ -422,6 +423,22 @@ class Udp:
                                    velocity.x, velocity.y, velocity.z,
                                    )
                 room.broadcast(data, self.udp)  # broadcast to everyone
+    def chat(self):
+        with self.room_manager_lock:
+            rooms_copy = list(self.room_manager.rooms.values())
+
+        for room in rooms_copy:
+            # broadcast all clients in this room to each other
+            for client in room.clients:
+                if not client.udp_addr:
+                    continue
+
+                queue = client.game_object.ClientHelper.messages_queue
+                if queue:
+                    try:
+                        self.udp.sendto(queue.pop(), client.udp_addr)
+                    except Exception as e:
+                        print("Failed to send update message from server", e)
 
     def logout(self):
         return  # this is not in use right now
