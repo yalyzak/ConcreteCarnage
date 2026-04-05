@@ -255,7 +255,7 @@ class Tcp:
                 elif cmd[0] == "CHAT":
                     msg = cmd[1]
                     if client.room:
-                        client.room.send_chat(msg)
+                        client.room.send_chat(msg, sender=client)
             except Exception as e:
                 print("TCP thread error for client", client.username, e)
                 break
@@ -577,15 +577,16 @@ class Room:
             if c.udp_addr:
                 udp.sendto(data, c.udp_addr)
 
-    def broadcast_tcp(self, data):
+    def broadcast_tcp(self, data, sender=None):
         for client in self.clients:
-            client.tcp_addr.send(data)
+            if client != sender:
+                client.tcp_addr.send(data)
 
-    def send_chat(self, msg):
+    def send_chat(self, msg, sender=None):
         try:
             if not Room.chat_filter.is_message_clean(msg):
                 msg = Room.chat_filter.censor(msg)
-            self.broadcast_tcp(msg.encode())
+            self.broadcast_tcp(msg.encode(), sender=sender)
         except Exception as e:
             print("Failed to send update message from server", e)
 
