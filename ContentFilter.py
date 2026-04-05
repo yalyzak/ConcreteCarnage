@@ -79,3 +79,6 @@ class ContentFilter:
         if self.UseGenai:
             self.genai_moderate_text(message)
         return True
+
+    def censor(self, msg):
+        return "*" * len(msg)
