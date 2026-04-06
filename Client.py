@@ -12,19 +12,24 @@ from collections import deque
 from bereshit import Vector3, Object
 from MAP import client_game_object
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT, LOGIN_FORMAT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, DAMAGE_FORMAT, SPAWN_FORMAT, LOGIN_FORMAT, SIGNATURE_SIZE, SIGNATURE_FORMAT
 
 
 class Client:
 
+    @staticmethod
+    def verify_signature(data, received_signature, secret):
+        expected_signature = hmac.new(secret, data, hashlib.sha256).digest()
+        return hmac.compare_digest(expected_signature, received_signature)
+
     def __init__(self, name="", ip="127.0.0.1"):
         self.name = name
         self.id = None
-        self._token = None
-        self._secret = None
+        self.__token = None
+        self.__secret = None
         self.logged_in = False
         self.server_ip = ip
-        self._seq = 0
+        self.__seq = 0
         self.__max_players = 5
 
         context = ssl.create_default_context()
@@ -45,6 +50,27 @@ class Client:
         self.players = Object(size=Vector3(0,0,0), name="players")
 
         self.chat_queue = deque(maxlen=6)
+
+    @property
+    def token(self):
+        return self.__token
+
+    def _set_token(self, value):
+        self.__token = value
+
+    @property
+    def secret(self):
+        return self.__secret
+
+    def _set_secret(self, value):
+        self.__secret = value
+
+    @property
+    def seq(self):
+        self.__seq += 1
+        return self.__seq
+
+
 
     def attach(self, owner_object):
         self.input = owner_object.PlayerController.input_queue
@@ -90,8 +116,8 @@ class Client:
                 self.id = int(parts[0])
 
                 # keep as BYTES (good for crypto later)
-                self._token = parts[1]
-                self._secret = parts[2]
+                self._set_token(parts[1])
+                self._set_secret(parts[2])
 
                 self.logged_in = True
             except Exception as e:
@@ -158,18 +184,24 @@ class Client:
             return pwd
         return None
 
+    def verify_token(self, token):
+        return hmac.compare_digest(self.__token, token)
+
+    def verify_seq(self, seq):
+        return self.__seq <= seq + 1
+
     def send_chat(self, msg):
         self.tcp.send(f"CHAT {msg}".encode())
 
     def send_ping(self):
         now = time.perf_counter()
         self.wait = True
-        seq = self.seq()
+        seq = self.seq
         data = struct.pack(
             PING_FORMAT,
             PacketType.PING,
             self.id,
-            self._token,
+            self.token,
             seq,
             now
         )
@@ -181,7 +213,7 @@ class Client:
         self.last_ping_time = now
 
     def send_input(self, keys, dx, dy, dt):
-        seq = self.seq()
+        seq = self.seq
         mask = 0
         for i, pressed in enumerate(keys):
             if pressed:
@@ -191,7 +223,7 @@ class Client:
             CLIENT_PACK_FORMAT,
             PacketType.INPUT,
             self.id,
-            self._token,
+            self.token,
             seq,
             mask,
             dx,
@@ -234,6 +266,38 @@ class Client:
             server_vel,
             velocity_correction
         )
+
+    def state(self, raw_data):
+        data_bytes = raw_data[:-SIGNATURE_SIZE]
+        received_sig = raw_data[-SIGNATURE_SIZE:]
+        player_id, token, seq, px, py, pz, rw, rx, ry, rz, vx, vy, vz = struct.unpack(STATE_FORMAT, data_bytes)[1:]
+
+        if not self.verify_token(token):
+            return
+
+        if not self.verify_signature(data_bytes, received_sig, self.__secret):
+            print("Invalid signature")
+            return
+
+        if not self.verify_seq(seq):
+            return
+
+        server_pos = Vector3(px, py, pz)
+        server_vel = Vector3(vx, vy, vz)
+        if player_id == self.id:
+            game_pos = self.parent.position
+            game_vel = self.parent.Rigidbody.velocity
+            self.position_correction(game_pos, server_pos, game_vel, server_vel)
+        else:
+            player = self.players.search(player_id)
+            if player:
+                player.position = server_pos
+                player.Rigidbody.velocity = server_vel
+            else:  # tobe removed
+                if len(self.players.children) < self.__max_players:
+                    self.players.add_child(client_game_object(player_id, server_pos, server_vel))
+                    print("new player joined")
+
     def handle_packet(self, data):
         try:
             ptype = struct.unpack("!B", data[:1])[0]
@@ -255,27 +319,10 @@ class Client:
 
         elif ptype == PacketType.STATE:
             try:
-                player_id, px, py, pz, rw, rx, ry, rz, vx, vy, vz = \
-                    struct.unpack(STATE_FORMAT, data)[1:]
+                self.state(data)
             except struct.error:
                 print("Bad state packet")
                 return
-            server_pos = Vector3(px, py, pz)
-            server_vel = Vector3(vx, vy, vz)
-            if player_id == self.id:
-                game_pos = self.parent.position
-                game_vel = self.parent.Rigidbody.velocity
-                self.position_correction(game_pos, server_pos, game_vel, server_vel)
-            else:
-                player = self.players.search(player_id)
-                if player:
-                    player.position = server_pos
-                    player.Rigidbody.velocity = server_vel
-                else: # tobe removed
-                    if len(self.players.children) < self.__max_players:
-                        self.players.add_child(client_game_object(player_id, server_pos, server_vel))
-                        print("new player joined")
-
         elif ptype == PacketType.DAMAGE:
             try:
                 hp = struct.unpack(DAMAGE_FORMAT, data)[1]
@@ -346,13 +393,12 @@ class Client:
         except BlockingIOError:
             pass
 
-
-    def seq(self):
-        self._seq += 1
-        return self._seq
+    def next_seq(self):
+        self.__seq += 1
+        return self.__seq
 
     def build_signature(self, data):
-        return hmac.new(self._secret, data, hashlib.sha256).digest()
+        return hmac.new(self.__secret, data, hashlib.sha256).digest()
 # =====================
 if __name__ == "__main__":
     c = Client("Player1")

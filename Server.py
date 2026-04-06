@@ -15,8 +15,8 @@ from MAP import server_map, server_game_object
 from ClientHelper import ClientHelper
 from ContentFilter import ContentFilter
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, STATE_FORMAT, TICK, SPAWN_FORMAT, \
-    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT
+from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, TICK, SPAWN_FORMAT, \
+    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT, STATE_DATA_FORMAT, STATE_HEADER_FORMAT
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -304,7 +304,7 @@ class Udp:
         if not client.verify_token(token):
             return
 
-        if not Udp.verify_signature(data_bytes, received_sig, client.get_secret()):
+        if not Udp.verify_signature(data_bytes, received_sig, client.secret):
             print("Invalid signature")
             return
 
@@ -334,7 +334,7 @@ class Udp:
             return
         if not client.verify_token(token):
             return
-        if not Udp.verify_signature(data_bytes, received_sig, client.get_secret()):
+        if not Udp.verify_signature(data_bytes, received_sig, client.secret):
             print("Invalid signature")
             return
 
@@ -415,12 +415,14 @@ class Udp:
                 rotation = client.game_object.quaternion
                 velocity = client.game_object.Rigidbody.velocity
 
-                data = struct.pack(STATE_FORMAT, PacketType.STATE,
-                                   client.id,
+
+                data = struct.pack(STATE_DATA_FORMAT,
                                    position.x, position.y, position.z,
                                    rotation.w, rotation.x, rotation.y, rotation.z,
                                    velocity.x, velocity.y, velocity.z,
                                    )
+
+
                 room.broadcast_udp(data, self.udp)  # broadcast to everyone
 
     def shoot(self):
@@ -494,10 +496,10 @@ class Server:
 
 class Client:
     def __init__(self, id, token, secret, username, tcp_addr):
-        self.id = id
-        self._token = token
-        self._secret = secret
-        self._seq = 0
+        self.__id = id
+        self.__token = token
+        self.__secret = secret
+        self.__seq = 0
         self._session_time = time.process_time()
         self.username = username
         self.room = None
@@ -507,8 +509,9 @@ class Client:
         self.last_seen = time.perf_counter()
         self.ServerController = self.game_object.ServerController
 
-    def get_secret(self):
-        return self._secret
+    @property
+    def secret(self):
+        return self.__secret
 
     def log_out(self):
         if self.room:
@@ -516,7 +519,7 @@ class Client:
         del self
 
     def verify_token(self, token):
-        if hmac.compare_digest(self._token, token):
+        if hmac.compare_digest(self.__token, token):
             if time.process_time() - self._session_time < SESSION_TIMEOUT:
                 return True
             else:
@@ -525,18 +528,34 @@ class Client:
         return False
 
     def verify_seq(self, seq):
-        return self._seq <= seq
+        return self.__seq <= seq
 
     def update_seq(self, seq):
-        self._seq = seq
+        self.__seq = seq
 
     def start_new_session(self, token, secret):
-        self._token = token
-        self._secret = secret
-        self._seq = 0
+        self.__token = token
+        self.__secret = secret
+        self.__seq = 0
         self._session_time = time.perf_counter()
 
+    @property
+    def id(self):
+        return self.__id
 
+    @property
+    def token(self):
+        return self.__token
+
+    @property
+    def seq(self):
+        return self.__seq
+
+    def build_signature(self, data):
+        return hmac.new(self.__secret, data, hashlib.sha256).digest()
+
+    def create_header(self):
+        return struct.pack(STATE_HEADER_FORMAT, PacketType.STATE, self.__id, self.__token, self.__seq)
 class Room:
     chat_filter = ContentFilter()
     def __init__(self, password, room_manager):
@@ -572,10 +591,15 @@ class Room:
             # remove from manager
             self.room_manager.remove_room(self.password)
 
-    def broadcast_udp(self, data, udp):
+
+    def broadcast_udp(self, data, udp, header=True):
         for c in self.clients:
             if c.udp_addr:
-                udp.sendto(data, c.udp_addr)
+                if header:
+                    data = c.create_header() + data
+                signature = c.build_signature(data)
+                packet = data + signature
+                udp.sendto(packet, c.udp_addr)
 
     def broadcast_tcp(self, data, sender=None):
         for client in self.clients:

@@ -16,7 +16,10 @@ class PacketType(IntEnum):
 CLIENT_PACK_FORMAT = "!BI16s2Ihhd"  # type, id, token, seq, mask, dx, dy, dt
 PING_FORMAT = "!BI16sId"            # type, id, token, seq, timestamp
 PONG_FORMAT = "!Bd"             # type, timestamp
-STATE_FORMAT = "!BI10f"         # type + id + 10 floats: id, pos(3), quat(4), vel(3)
+STATE_FORMAT = "!BI16sI10f"
+STATE_DATA_FORMAT = "!10f"  # pos + qud + vel
+STATE_HEADER_FORMAT = "!BI16sI"  # type + id + token + seq
+
 DAMAGE_FORMAT = "!B1f"          # type + HP
 SPAWN_FORMAT = "!BI"             # type + id
 
