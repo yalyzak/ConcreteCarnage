@@ -15,8 +15,7 @@ from MAP import server_map, server_game_object
 from ClientHelper import ClientHelper
 from ContentFilter import ContentFilter
 
-from protocol import PacketType, CLIENT_PACK_FORMAT, PING_FORMAT, PONG_FORMAT, TICK, SPAWN_FORMAT, \
-    LOGIN_FORMAT, SIGNATURE_FORMAT, SIGNATURE_SIZE, SESSION_TIMEOUT, STATE_DATA_FORMAT, STATE_HEADER_FORMAT
+from protocol import PacketType, PacketFormat, TICK, SESSION_TIMEOUT, SIGNATURE_SIZE, SIGNATURE_FORMAT
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -25,13 +24,13 @@ class Tcp:
     HOST = "0.0.0.0"
     MAX_CLIENTS = 100
 
-    @staticmethod
-    def despawn(cid):
-        return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
-
-    @staticmethod
-    def respawn(cid):
-        return struct.pack(SPAWN_FORMAT, PacketType.RESPAWN, cid)
+    # @staticmethod
+    # def despawn(cid):
+    #     return struct.pack(PacketFormat(PacketType.DESPAWN), PacketType.DESPAWN, cid)
+    #
+    # @staticmethod
+    # def respawn(cid):
+    #     return struct.pack(PacketFormat(PacketType.RESPAWN), cid)
 
     def __init__(self, room_manager, clients, clients_lock, udp):
         self.udp = udp
@@ -181,7 +180,8 @@ class Tcp:
             username = conn.recv(128).decode()
             i = 0
             while self.room_manager.usernames.get(username):
-                username += f"_{i}"
+                username = f"{username}_{i}"
+                i += 1
         except Exception as e:
             print("TCP recv failed during login", e)
             conn.close()
@@ -194,7 +194,7 @@ class Tcp:
             client = Client(cid, token, secret, username, conn)
             self.clients[cid] = client
 
-        data = struct.pack(LOGIN_FORMAT, cid, token, secret)
+        data = struct.pack(PacketFormat(PacketType.LOGIN), cid, token, secret)
         conn.send(data)
         conn.settimeout(None)
         while True:
@@ -233,7 +233,7 @@ class Tcp:
                         client.game_object.Player.respawn()
                         client.room.Camera.add_child(client.game_object)
                         conn.send(b"respawned")
-                        client.room.broadcast_udp(Tcp.respawn(cid), self.udp)
+                        client.room.broadcast_udp(b'', self.udp, PacketType.RESPAWN)
                     else:
                         conn.send(b"FAILED")
 
@@ -241,7 +241,7 @@ class Tcp:
                     if client.room:
                         client.game_object.destroy()
                         conn.send(b"despawned")
-                        client.room.broadcast_udp(Tcp.despawn(client.id), self.udp)
+                        client.room.broadcast_udp(b'', self.udp, PacketType.DESPAWN)
                     else:
                         conn.send(b"FAILED")
 
@@ -263,12 +263,10 @@ class Tcp:
         conn.close()
 
 
-
-
 class Udp:
-    @staticmethod
-    def despawn(cid):
-        return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
+    # @staticmethod
+    # def despawn(cid):
+    #     return struct.pack(SPAWN_FORMAT, PacketType.DESPAWN, cid)
 
     @staticmethod
     def verify_signature(data, received_signature, secret):
@@ -290,7 +288,7 @@ class Udp:
     def movement(self, raw_data, addr):
         data_bytes = raw_data[:-SIGNATURE_SIZE]
         received_sig = raw_data[-SIGNATURE_SIZE:]
-        data = struct.unpack(CLIENT_PACK_FORMAT, data_bytes)[1:]
+        data = struct.unpack( PacketFormat(PacketType.HEADER) + PacketFormat(PacketType.INPUT) , data_bytes)[1:]
         cid, token, seq, keys, dx, dy, timestamp = data
 
         with self.clients_lock:
@@ -325,8 +323,7 @@ class Udp:
     def pong(self, raw_data, addr):
         data_bytes = raw_data[:-SIGNATURE_SIZE]
         received_sig = raw_data[-SIGNATURE_SIZE:]
-        data = struct.unpack(PING_FORMAT + SIGNATURE_FORMAT, raw_data)[1:]
-        cid, token, seq, timestamp, signature = data
+        cid, token, seq, timestamp = struct.unpack(PacketFormat(PacketType.HEADER) + PacketFormat(PacketType.PING), data_bytes)[1:]
 
         with self.clients_lock:
             client = self.clients.get(cid)
@@ -338,7 +335,7 @@ class Udp:
             print("Invalid signature")
             return
 
-        pong = struct.pack(PONG_FORMAT, PacketType.PONG, timestamp)
+        pong = struct.pack(PacketFormat(PacketType.PONG), PacketType.PONG, timestamp)
         client.last_seen = time.perf_counter()
         try:
             self.udp.sendto(pong, addr)
@@ -381,6 +378,7 @@ class Udp:
                             try:
                                 self.movement(data, addr)
                             except struct.error:
+                                print("bad player input Packet")
                                 continue
                 except Exception as e:
                     print("Packet processing error", e)
@@ -415,15 +413,10 @@ class Udp:
                 rotation = client.game_object.quaternion
                 velocity = client.game_object.Rigidbody.velocity
 
+                data = (position.x, position.y, position.z, rotation.w, rotation.x, rotation.y, rotation.z, velocity.x,
+                        velocity.y, velocity.z)
 
-                data = struct.pack(STATE_DATA_FORMAT,
-                                   position.x, position.y, position.z,
-                                   rotation.w, rotation.x, rotation.y, rotation.z,
-                                   velocity.x, velocity.y, velocity.z,
-                                   )
-
-
-                room.broadcast_udp(data, self.udp)  # broadcast to everyone
+                room.broadcast_udp(data, self.udp, PacketType.STATE, id=client.id)  # broadcast to everyone
 
     def shoot(self):
         with self.room_manager_lock:
@@ -437,10 +430,29 @@ class Udp:
                 queue = client.game_object.ClientHelper.messages_queue
                 if queue:
                     try:
-                        self.udp.sendto(queue.pop(), client.udp_addr)
+                        msg, type = queue.pop()
+                        msg = client.pack_data(msg, type)
+                        self.udp.sendto(msg, client.udp_addr)
                     except Exception as e:
                         print("Failed to send update message from server", e)
 
+    # def send_chat(self):
+    #     with self.room_manager_lock:
+    #         rooms_copy = list(self.room_manager.rooms.values())
+    #
+    #     for room in rooms_copy:
+    #         for client in room.clients:
+    #             if not client.udp_addr:
+    #                 continue
+    #
+    #             queue = client.game_object.ClientHelper.messages_queue
+    #             if queue:
+    #                 try:
+    #                     msg, type = queue.pop()
+    #                     msg = client.pack_data(msg, type)
+    #                     self.udp.sendto(msg, client.udp_addr)
+    #                 except Exception as e:
+    #                     print("Failed to send update message from server", e)
 
     def logout(self):
         return  # this is not in use right now
@@ -549,15 +561,24 @@ class Client:
 
     @property
     def seq(self):
+        # self += 1
         return self.__seq
 
     def build_signature(self, data):
         return hmac.new(self.__secret, data, hashlib.sha256).digest()
 
-    def create_header(self):
-        return struct.pack(STATE_HEADER_FORMAT, PacketType.STATE, self.__id, self.__token, self.__seq)
+    def pack_data(self, type, data, id=None):
+        id = self.id if not id else id
+        fmt = PacketFormat(PacketType.HEADER) + PacketFormat(type)
+        if isinstance(data, tuple) or len(data) == 0:
+            msg = struct.pack(fmt, type, id, self.token, self.seq, *data)
+        else:
+            msg = struct.pack(fmt, type, id, self.token, self.seq, data)
+        return msg + self.build_signature(msg)
+
 class Room:
     chat_filter = ContentFilter()
+
     def __init__(self, password, room_manager):
         self.password = password
         self.clients = []
@@ -591,15 +612,10 @@ class Room:
             # remove from manager
             self.room_manager.remove_room(self.password)
 
-
-    def broadcast_udp(self, data, udp, header=True):
+    def broadcast_udp(self, data, udp, type, id=None):
         for c in self.clients:
             if c.udp_addr:
-                if header:
-                    data = c.create_header() + data
-                signature = c.build_signature(data)
-                packet = data + signature
-                udp.sendto(packet, c.udp_addr)
+                udp.sendto(c.pack_data(type, data, id=id), c.udp_addr)
 
     def broadcast_tcp(self, data, sender=None):
         for client in self.clients:
@@ -613,6 +629,7 @@ class Room:
             self.broadcast_tcp(msg.encode(), sender=sender)
         except Exception as e:
             print("Failed to send update message from server", e)
+
 
 class RoomManager:
     def __init__(self):

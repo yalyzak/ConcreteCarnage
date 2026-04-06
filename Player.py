@@ -1,7 +1,7 @@
 import struct
 import random
 
-from protocol import PacketType, DAMAGE_FORMAT, SPAWN_FORMAT
+from protocol import PacketType, DAMAGE_FORMAT
 from bereshit import Text, Vector3, Quaternion
 
 
@@ -56,13 +56,9 @@ class GamePlayer(Player):
 
 
 class ServerPlayer(Player):
-    def damage_message(self):
-        return struct.pack(DAMAGE_FORMAT, PacketType.DAMAGE, self._HP)
-
-
     def Hit(self, hp):
         self._HP -= hp
-        self.parent.ClientHelper.send_udp(self.damage_message())
+        self.parent.ClientHelper.send_udp((self._HP, PacketType.DAMAGE))
         if self._HP <= 0:
             self.despawn() # need better securty so player wouldnt be abele to keep playing
 
