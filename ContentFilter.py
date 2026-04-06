@@ -32,7 +32,20 @@ class ContentFilter:
                 model="unitary/toxic-bert",  # fine-tuned BERT for toxicity
                 return_all_scores=True
             )
-        self.bad_words = {"קללה", "****", "טיפש", "מטומטם", "nigga", "fuck", "ass", "nigger"}
+        self.bad_words = {
+            "fuck", "fucking", "fucker", "shit", "bullshit",
+            "ass", "asshole", "bitch", "bastard",
+            "dick", "dickhead", "pussy",
+            "damn", "hell", "crap",
+            "wtf", "stfu", "mf",
+
+            "מטומטם", "טיפש", "אידיוט",
+            "דביל", "חרא", "חרא קטן",
+            "בן זונה", "בן זונה",
+            "זבל", "אפס", "מניאק",
+            "שרמוטה", "כוס", "כוסעמק",
+            "לך לעזאזל",
+        }
 
     def nlp_moderate_text(self, message, threshold=0.5):
         """

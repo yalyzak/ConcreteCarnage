@@ -55,6 +55,7 @@ class Client:
             PacketType.PONG: self.handle_pong,
             PacketType.STATE: self.handle_state,
             PacketType.RESPAWN: self.handle_respawn,
+            PacketType.DESPAWN: self.handle_despawn,
         }
 
     @property
@@ -285,6 +286,25 @@ class Client:
                     player.Player.respawn()
         except:
             print("Bad death packet")
+
+    def handle_despawn(self, id, _):
+        try:
+            if id == self.id:
+                self.parent.Player.despawn()
+            else:
+                player = self.players.search(id)
+                if player:
+                    player.Player.despawn()
+        except:
+            print("Bad death despawn")
+
+    def handle_damage(self, id, data):
+        try:
+            hp = data
+        except struct.error:
+            print("Bad damage packet")
+            return
+        self.parent.Player.Hit(hp)
 
     def handle_state(self, id, data):
         try:
