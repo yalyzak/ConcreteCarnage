@@ -1,3 +1,5 @@
 mouse
 keyboard
 bereshit
+pip install transformers
+pip install torch
