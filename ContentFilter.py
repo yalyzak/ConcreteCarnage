@@ -6,7 +6,7 @@ try:
     Genai_AVAILABLE = True
 except ImportError:
     Genai_AVAILABLE = False
-    print("Gemini is not available make sure to install requirements.txt")
+    print("Gemini is not available make sure to install requirements_server.txt")
 
 try:
     from transformers import pipeline
@@ -14,7 +14,7 @@ try:
     NLP_AVAILABLE = True
 except ImportError:
     NLP_AVAILABLE = False
-    print("NLP is not available make sure to install environment.yml")
+    print("NLP is not available make sure to install requirements_server.txt")
 
 
 class ContentFilter:

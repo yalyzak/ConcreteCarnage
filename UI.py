@@ -27,7 +27,7 @@ titles = [
     "Shoot First. Respawn Later."
 ]
 
-chat_filter = ContentFilter()
+chat_filter = ContentFilter(UseNLP=False, UseGenai=False)
 
 
 class UI:
