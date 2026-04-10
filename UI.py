@@ -828,19 +828,17 @@ class PlayUI(AbstractUI):
             self.activateMenulayout()
         elif button == self.chat_input_box:
             if self.get_pressed_keys(self.chat_input):
-                if True:
-                    self.client.send_chat(self.chat_input.text)
-                    self.add_chat_message(self.chat_input.text)
-                    # self.client.send_massage(self.chat_input.text)
-                    self.chat_input.text = ""
+                self.send_chat_message(self.chat_input.text)
+                self.chat_input.text = ""
 
-                else:
-                    self.chat_input.text = "*" * len(self.chat_input.text)
-                    self.client.send_chat(self.chat_input.text)
-                    self.add_chat_message(self.chat_input.text)
-                    self.chat_input.text = ""
+    def send_chat_message(self, message):
+        if not chat_filter.is_message_clean(message):
+            message = chat_filter.censor(message)
+        self.client.send_chat(message)
+        self.add_chat_message_ui(message)
 
-    def add_chat_message(self, text):
+
+    def add_chat_message_ui(self, text):
         self.chat_log.append(text)
 
         # Keep last 6 messages
@@ -866,9 +864,10 @@ class PlayUI(AbstractUI):
 
     def Update(self, dt):
         super(PlayUI, self).Update(dt)
-        msg = self.client.receive_chat()
-        if msg:
-            self.add_chat_message(msg)
+        self.client.receive_tcp()
+        if self.client.chat_queue:
+            msg = self.client.chat_queue.popleft()
+            self.send_chat_message(msg)
 
     def load_chat_from_log(self):
         if hasattr(self, "chat_messages"):

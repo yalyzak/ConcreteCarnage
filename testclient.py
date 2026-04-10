@@ -28,12 +28,15 @@ c.join_room(psw)  # test join room
 time.sleep(1)
 
 start = time.perf_counter()
-c.respawn()
+# c.respawn()
 
-for i in range(5):  # test ping
+while True:  # test ping
     c.send_ping()
+    c.receive_tcp()
+    # c.send_input(*random_input())
+    # c.send_chat("test")  # test chat
     time.sleep(0.5)
-    c.send_input(*random_input())
+
 
 c.send_chat("test")     # test chat
 time.sleep(1)

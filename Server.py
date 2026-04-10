@@ -15,7 +15,7 @@ from MAP import server_map, server_game_object
 from ClientHelper import ClientHelper
 from ContentFilter import ContentFilter
 
-from protocol import PacketType, PacketFormat, TICK, SESSION_TIMEOUT, SIGNATURE_SIZE, SIGNATURE_FORMAT
+from protocol import PacketType, PacketFormat, TICK, SESSION_TIMEOUT, SIGNATURE_SIZE
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -49,9 +49,6 @@ class Tcp:
         self.pending_handshakes = 0
         self.MAX_HANDSHAKES = 20
 
-    def create_session(self):
-        return self.generate_token(), secrets.token_bytes(32)
-
     def create_play_rooms(self, num):
         for i in range(num):
             pwd = self.room_manager.create_room(pwd=str(i + 1))
@@ -65,15 +62,7 @@ class Tcp:
         else:
             conn.send(b"EXISTS")
 
-    def generate_token(self):
-        token = secrets.token_bytes(16)
-        with self.room_manager_lock:
-            rooms_copy = list(self.room_manager.rooms.values())
-        for room in rooms_copy:
-            for client in room.clients:
-                if client.verify_token(token):
-                    return self.generate_token()
-        return token
+
 
     def tcp_server(self):
 
@@ -190,11 +179,11 @@ class Tcp:
         with self.clients_lock:
             cid = self.next_id
             self.next_id += 1
-            token, secret = self.create_session()
-            client = Client(cid, token, secret, username, conn)
+            client = Client(cid, username, conn)
+            client.start_new_session()
             self.clients[cid] = client
 
-        data = struct.pack(PacketFormat(PacketType.LOGIN), cid, token, secret)
+        data = struct.pack(PacketFormat(PacketType.LOGIN), cid, client.token, client.secret)
         conn.send(data)
         conn.settimeout(None)
         while True:
@@ -300,6 +289,7 @@ class Udp:
             return
 
         if not client.verify_token(token):
+            print("bad token")
             return
 
         if not Udp.verify_signature(data_bytes, received_sig, client.secret):
@@ -307,6 +297,7 @@ class Udp:
             return
 
         if not client.verify_seq(seq):
+            print("bad seq")
             return
 
         client.update_seq(seq)
@@ -387,7 +378,10 @@ class Udp:
             now = time.perf_counter()
             if now - last_broadcast_all > SERVER_TICK:
                 try:
-                    self.broadcast()
+                    with self.room_manager_lock:
+                        rooms_copy = list(self.room_manager.rooms.values())
+                    self.broadcast(rooms_copy)
+                    self.token_update(rooms_copy)
                 except Exception as e:
                     print("Broadcast error", e)
 
@@ -399,12 +393,8 @@ class Udp:
             except Exception as e:
                 print("logout error", e)
 
-    def broadcast(self):
-        with self.room_manager_lock:
-            rooms_copy = list(self.room_manager.rooms.values())
-
-        for room in rooms_copy:
-            # broadcast all clients in this room to each other
+    def broadcast(self, rooms):
+        for room in rooms:
             for client in room.clients:
                 if not client.udp_addr:
                     continue
@@ -417,6 +407,16 @@ class Udp:
                         velocity.y, velocity.z)
 
                 room.broadcast_udp(data, self.udp, PacketType.STATE, id=client.id)  # broadcast to everyone
+
+    def token_update(self, rooms):
+        for room in rooms:
+            for client in room.clients:
+                if time.perf_counter() - client.session_time > 60 * 0.1:  # 5 minutes
+                    client.start_new_session()
+                    msg = client.token + client.secret
+                    print(client.token, client.secret)
+                    client.tcp_addr.send(msg)
+
 
     def shoot(self):
         with self.room_manager_lock:
@@ -436,23 +436,6 @@ class Udp:
                     except Exception as e:
                         print("Failed to send update message from server", e)
 
-    # def send_chat(self):
-    #     with self.room_manager_lock:
-    #         rooms_copy = list(self.room_manager.rooms.values())
-    #
-    #     for room in rooms_copy:
-    #         for client in room.clients:
-    #             if not client.udp_addr:
-    #                 continue
-    #
-    #             queue = client.game_object.ClientHelper.messages_queue
-    #             if queue:
-    #                 try:
-    #                     msg, type = queue.pop()
-    #                     msg = client.pack_data(msg, type)
-    #                     self.udp.sendto(msg, client.udp_addr)
-    #                 except Exception as e:
-    #                     print("Failed to send update message from server", e)
 
     def logout(self):
         return  # this is not in use right now
@@ -507,12 +490,12 @@ class Server:
 
 
 class Client:
-    def __init__(self, id, token, secret, username, tcp_addr):
+    def __init__(self, id, username, tcp_addr):
         self.__id = id
-        self.__token = token
-        self.__secret = secret
+        self.__token = None
+        self.__secret = None
         self.__seq = 0
-        self._session_time = time.process_time()
+        self.__session_time = time.process_time()
         self.username = username
         self.room = None
         self.udp_addr = None
@@ -530,13 +513,17 @@ class Client:
             self.room.remove_client(self)
         del self
 
+    def _generate_token(self):
+        token = secrets.token_bytes(16)
+        return token
+
+    def _generate_session(self):
+        return self._generate_token(), secrets.token_bytes(32)
+
     def verify_token(self, token):
         if hmac.compare_digest(self.__token, token):
-            if time.process_time() - self._session_time < SESSION_TIMEOUT:
+            if time.process_time() - self.__session_time < SESSION_TIMEOUT:
                 return True
-            else:
-                return True
-                self.start_new_session()
         return False
 
     def verify_seq(self, seq):
@@ -545,11 +532,14 @@ class Client:
     def update_seq(self, seq):
         self.__seq = seq
 
-    def start_new_session(self, token, secret):
-        self.__token = token
-        self.__secret = secret
+    @property
+    def session_time(self):
+        return self.__session_time
+
+    def start_new_session(self):
+        self.__token, self.__secret = self._generate_session()
         self.__seq = 0
-        self._session_time = time.perf_counter()
+        self.__session_time = time.perf_counter()
 
     @property
     def id(self):
@@ -626,6 +616,7 @@ class Room:
         try:
             if not Room.chat_filter.is_message_clean(msg):
                 msg = Room.chat_filter.censor(msg)
+                msg = "CHAT " + self.username + ": " + msg
             self.broadcast_tcp(msg.encode(), sender=sender)
         except Exception as e:
             print("Failed to send update message from server", e)

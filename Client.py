@@ -1,4 +1,5 @@
 # client.py
+import ast
 import hashlib
 import hmac
 import random
@@ -64,6 +65,10 @@ class Client:
 
     def _set_token(self, value):
         self.__token = value
+    def _new_session(self, token, secret):
+        self.__token = token
+        self.__secret = secret
+        self.__seq = 0
 
     @property
     def secret(self):
@@ -94,9 +99,8 @@ class Client:
                 self.send_ping()
 
         self.receive_input()
-        msg = self.receive_chat()
-        if msg:
-            self.chat_queue.append(msg)
+        self.receive_tcp()
+
 
     def Start(self):
         self.parent.World.add_object(self.players)
@@ -340,7 +344,7 @@ class Client:
         else:
             id, token, seq, data, data_bytes, signature = self.unpack_data(ptype, data)
             if not self.verify_token(token):
-                print("bad token")
+                print("bad token", token)
                 return
 
             if not self.verify_signature(data_bytes, signature, self.__secret):
@@ -412,11 +416,43 @@ class Client:
             if not data:
                 print("TCP closed")
                 return
-
-            return data.decode()
+            return data
 
         except BlockingIOError:
             pass
+
+    def handel_tcp(self, msg):
+        if msg:
+            cmd = msg.split()
+
+            if cmd[0] == "CHAT":
+                self.chat_queue.append(msg)
+            else:
+                token = msg[:16]
+                secret = msg[16:]
+                self._new_session(token, secret)
+
+    def receive_tcp(self):
+
+        if not self.logged_in:
+            return
+
+        try:
+            ready, _, _ = select.select([self.tcp], [], [], 0)
+            if not ready:
+                return
+
+            data = self.tcp.recv(1024)
+
+            if not data:
+                print("TCP closed")
+                return
+
+            self.handel_tcp(data)
+
+        except BlockingIOError:
+            pass
+
 
     def next_seq(self):
         # self.__seq += 1
@@ -436,8 +472,9 @@ if __name__ == "__main__":
 
     start = time.perf_counter()
 
-    for i in range(5): # test ping
+    while True:  # test ping
         c.send_ping()
+        c.receive_tcp()
         time.sleep(1)
 
     c.logout()  # test logout
