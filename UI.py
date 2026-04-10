@@ -55,7 +55,7 @@ class AbstractUI:
         self.usePing()
 
     def setup_layout(self):
-        pass
+        self.usePing()
 
     def usePing(self):
         self.render.add_text_rect(AbstractUI.ping_text)
@@ -72,7 +72,6 @@ class AbstractUI:
     def Update(self, dt):
         if not self.show:
             self.setup_layout()
-            self.usePing()
         pos = mouse.get_position()
 
         if mouse.is_pressed('left'):
@@ -123,7 +122,7 @@ class HomeUI(AbstractUI):
         self.Active = True
 
     def setup_layout(self):
-
+        super().setup_layout()
         # Background
         self.background = Box(center=(960, 540), size=(1920, 1080), layer=0, texture="models/carnagetexture.jpg")
         self.render.add_ui_rect(self.background)
@@ -701,7 +700,9 @@ class PlayUI(AbstractUI):
         super().Start()
 
     def setup_layout(self):
-        self.client.Active = False
+        super().setup_layout()
+
+        # self.client.Active = False
         # Dark overlay background
         self.background = Box(center=(960, 540), size=(1920, 1080), color=(0, 0, 0), opacity=0.6, layer=5)
         # self.render.add_ui_rect(self.background)
@@ -879,6 +880,8 @@ class PlayUI(AbstractUI):
 class GameUI(AbstractUI):
 
     def setup_layout(self):
+        super().setup_layout()
+
         self.render.hide_cursor()
 
         self.cursor = Box(texture="models/cursor.png", size=(50,50))
