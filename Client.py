@@ -57,6 +57,8 @@ class Client:
             PacketType.STATE: self.handle_state,
             PacketType.RESPAWN: self.handle_respawn,
             PacketType.DESPAWN: self.handle_despawn,
+            PacketType.DAMAGE: self.handle_damage,
+
         }
 
     @property
@@ -304,7 +306,7 @@ class Client:
 
     def handle_damage(self, id, data):
         try:
-            hp = data
+            hp = data[0]
         except struct.error:
             print("Bad damage packet")
             return
@@ -344,7 +346,7 @@ class Client:
         else:
             id, token, seq, data, data_bytes, signature = self.unpack_data(ptype, data)
             if not self.verify_token(token):
-                print("bad token", token)
+                print("bad token "+ token)
                 return
 
             if not self.verify_signature(data_bytes, signature, self.__secret):
@@ -425,8 +427,8 @@ class Client:
         if msg:
             cmd = msg.split()
 
-            if cmd[0] == "CHAT":
-                self.chat_queue.append(msg)
+            if cmd[0] == b"CHAT":
+                self.chat_queue.append(msg[5:].decode())
             else:
                 token = msg[:16]
                 secret = msg[16:]

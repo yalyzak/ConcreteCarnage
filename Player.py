@@ -18,6 +18,7 @@ class Player:
 
 
 
+
     def Start(self):
         # self.render = self.parent.World.Camera.Camera.render
         # self.render.add_text_rect(self._HP_Text)

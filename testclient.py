@@ -34,7 +34,7 @@ while True:  # test ping
     c.send_ping()
     c.receive_tcp()
     # c.send_input(*random_input())
-    # c.send_chat("test")  # test chat
+    c.send_chat("test")  # test chat
     time.sleep(0.5)
 
 

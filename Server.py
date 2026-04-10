@@ -244,7 +244,7 @@ class Tcp:
                 elif cmd[0] == "CHAT":
                     msg = cmd[1]
                     if client.room:
-                        client.room.send_chat(msg, sender=client)
+                        client.send_chat(msg, sender=client)
             except Exception as e:
                 print("TCP thread error for client", client.username, e)
                 break
@@ -411,10 +411,10 @@ class Udp:
     def token_update(self, rooms):
         for room in rooms:
             for client in room.clients:
-                if time.perf_counter() - client.session_time > 60 * 0.1:  # 5 minutes
+                if time.perf_counter() - client.session_time > 60 * 5:  # 5 minutes
                     client.start_new_session()
                     msg = client.token + client.secret
-                    print(client.token, client.secret)
+                    print(client.token)
                     client.tcp_addr.send(msg)
 
 
@@ -431,7 +431,7 @@ class Udp:
                 if queue:
                     try:
                         msg, type = queue.pop()
-                        msg = client.pack_data(msg, type)
+                        msg = client.pack_data(type, msg)
                         self.udp.sendto(msg, client.udp_addr)
                     except Exception as e:
                         print("Failed to send update message from server", e)
@@ -560,12 +560,21 @@ class Client:
     def pack_data(self, type, data, id=None):
         id = self.id if not id else id
         fmt = PacketFormat(PacketType.HEADER) + PacketFormat(type)
-        if isinstance(data, tuple) or len(data) == 0:
+
+        if isinstance(data, tuple) or (isinstance(data, bytes) and len(data) == 0):
             msg = struct.pack(fmt, type, id, self.token, self.seq, *data)
         else:
             msg = struct.pack(fmt, type, id, self.token, self.seq, data)
         return msg + self.build_signature(msg)
 
+    def send_chat(self, msg, sender=None):
+        try:
+            if not Room.chat_filter.is_message_clean(msg):
+                msg = Room.chat_filter.censor(msg)
+            msg = "CHAT " + self.username + ": " + msg
+            self.room.broadcast_tcp(msg.encode(), sender=sender)
+        except Exception as e:
+            print("Failed to send update message from server", e)
 class Room:
     chat_filter = ContentFilter()
 
@@ -612,14 +621,7 @@ class Room:
             if client != sender:
                 client.tcp_addr.send(data)
 
-    def send_chat(self, msg, sender=None):
-        try:
-            if not Room.chat_filter.is_message_clean(msg):
-                msg = Room.chat_filter.censor(msg)
-                msg = "CHAT " + self.username + ": " + msg
-            self.broadcast_tcp(msg.encode(), sender=sender)
-        except Exception as e:
-            print("Failed to send update message from server", e)
+
 
 
 class RoomManager:
