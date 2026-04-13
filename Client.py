@@ -324,7 +324,7 @@ class Client:
         if id == self.id:
             game_pos = self.parent.position
             game_vel = self.parent.Rigidbody.velocity
-            self.position_correction(game_pos, server_pos, game_vel, server_vel)
+            # self.position_correction(game_pos, server_pos, game_vel, server_vel)
         else:
             player = self.players.search(id)
             if player:

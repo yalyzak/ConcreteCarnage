@@ -39,6 +39,7 @@ class Controller:
         self.force_amount = 10
         self.jump_speed = 50
         self.isGrounded = False
+        self.ground_normal = Vector3(0,1,0)
         self.max_velocity = 9.8
         self.sensitivity = sensitivity
         self.max_speed = 5
@@ -61,29 +62,37 @@ class Controller:
     def attach(self, other):
         self.rb = other.Rigidbody
 
-    def OnCollisionStay(self, other):
+    def OnCollisionStay(self, collision):
         if self.isGrounded:
             return
-        if other.parent.get_component("Ground"):
+        if collision.other.parent.get_component("Ground"):
             self.isGrounded = True
+            self.ground_normal = collision.normal
 
-    def OnCollisionEnter(self, other):
+    def OnCollisionEnter(self, collision):
         if self.isGrounded:
             return
-        if other.parent.get_component("Ground"):
+        if collision.other.parent.get_component("Ground"):
             self.isGrounded = True
+            self.ground_normal = collision.normal
 
-    def OnCollisionExit(self, other):
-        if other.parent.get_component("Ground"):
+    def OnCollisionExit(self, collision):
+        if collision.other.parent.get_component("Ground"):
             self.isGrounded = False
+
 
     def keyboard_controller(self, keys, dt):
 
 
         if keys[0]:
-            forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
-            forward = Vector3(forward.x, 0, forward.z).normalized()
+            forward = self.parent.quaternion.rotate(Vector3(0, 0, 1)).normalized()
 
+            # project onto ground
+            n = self.ground_normal
+            forward = forward - n * forward.dot(n)
+            forward = forward.normalized()
+            if n != Vector3(0,1,0):
+                print(n)
             horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
 
             # add acceleration
@@ -99,6 +108,11 @@ class Controller:
             # self.rb.velocity += forward * self.force_amount * dt
         if keys[1]:
             backward = self.parent.quaternion.rotate(Vector3(0, 0, -1))
+            # project onto ground
+            n = self.ground_normal
+            backward = backward - n * backward.dot(n)
+            backward = backward.normalized()
+
             backward = Vector3(backward.x, 0, backward.z).normalized()
 
             horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
