@@ -55,7 +55,7 @@ def build_ramp(starting_point, end_point, texture=False):
 
 
 
-def build_wall(position=Vector3(0, 0, 0), size=Vector3(1, 1, 1), rotation=Vector3(0, 0, 0), texture=False):
+def build_wall(position=Vector3(0, 0, 0), size=Vector3(1, 1, 1), rotation=Vector3(0, 0, 0), texture=True):
     if texture:
         return Object(position=position, size=size, rotation=rotation).add_component(
             [BoxCollider(), Rigidbody(isKinematic=True),
