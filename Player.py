@@ -28,7 +28,7 @@ class Player:
         return "Player"
 
     def respawn(self):
-        self.parent.position = Vector3(random.randint(0, 20), 1, random.randint(0, 20))
+        self.parent.position = Vector3(random.randint(0, 20), 10, random.randint(0, 20))
         self.parent.quaternion *= Quaternion()
         self.parent.size = Vector3(1,1,1)
         self._HP = self._MaxHp

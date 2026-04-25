@@ -7,35 +7,51 @@ from Player import GamePlayer, ServerPlayer
 from Ground import Ground
 
 
-def build_block(position=Vector3(0, 0, 0), size=Vector3(1, 1, 1), rotation=Vector3(0, 0, 0), texture=False):
+def build_block(position=Vector3(0, 0, 0), size=Vector3(1, 1, 1), rotation=Vector3(0, 0, 0), quaternion=None, texture=False):
     if texture:
+        if quaternion:
+            return Object(position=position, size=size, quaternion=quaternion).add_component(
+                [BoxCollider(), Rigidbody(isKinematic=True), Ground(),
+                 MeshRander(shape="box", texture="models/concrete_texture.jpg", repeat_texture=True)])
         return Object(position=position, size=size, rotation=rotation).add_component(
             [BoxCollider(), Rigidbody(isKinematic=True), Ground(),
              MeshRander(shape="box", texture="models/concrete_texture.jpg", repeat_texture=True)])
-
+    if quaternion:
+        return Object(position=position, size=size, quaternion=quaternion).add_component(
+            [BoxCollider(), Rigidbody(isKinematic=True), Ground(),
+             MeshRander(shape="box", texture="models/concrete_texture.jpg", repeat_texture=True)])
     return Object(position=position, size=size, rotation=rotation).add_component(
         [BoxCollider(), Rigidbody(isKinematic=True), Ground()])
 
 
 def build_ramp(starting_point, end_point, texture=False):
-    direction = end_point - starting_point
+    direction = (end_point - starting_point)
     length = direction.magnitude()
+    forward = direction.normalized()
 
-    rot_q = Quaternion.look_rotation(direction.normalized(), Vector3(0,1,0))
-    rotation = -rot_q.to_euler()
+    world_up = Vector3(0, 1, 0)
 
-    # Center position (middle of ramp)
+    # 🔥 handle edge case (vertical ramp)
+    if abs(forward.dot(world_up)) > 0.999:
+        world_up = Vector3(0, 0, 1)
+
+    # build orthonormal basis
+    right = world_up.cross(forward).normalized()
+    up = forward.cross(right).normalized()
+
+    # 👉 build quaternion FROM basis (this is what you were missing)
+    rot_q = Quaternion.from_basis(right, up, forward)
+    # rotation = -rot_q.to_euler()
+
+    # center
     position = starting_point + direction * 0.5
 
-    size = Vector3(2, 1, length)  # width, height, length
+    size = Vector3(2, 1, length)
 
-    # 👇 compute ramp's local UP direction
-    up = rot_q.rotate(Vector3(0, 1, 0))  # or conjugate().rotate if your system needs it
-
-    # 👇 shift DOWN by half height so top face aligns with line
+    # shift so TOP face matches line
     position -= up * (size.y * 0.5)
 
-    return build_block(position=position, size=size, rotation=rotation)
+    return build_block(position=position, size=size, quaternion=rot_q)
 
 
 
@@ -138,13 +154,16 @@ def server_map():
         # East wall — solid
         build_wall(size=Vector3(1, floor_height, 10), position=Vector3(4.5, ground_height, 0)),
 
-        build_wall(size=Vector3(2, 1, 2), position=Vector3(-3, 0, -3)),
+        build_block(size=Vector3(2, 1, 2), position=Vector3(-3, 0, -3)),
 
-        build_wall(size=Vector3(2, 1, 2), position=Vector3(-3, (floor_height - 0.5) / 2, 3)),
+        build_block(size=Vector3(2, 1, 2), position=Vector3(-3, (floor_height - 0.5) / 2, 3)),
 
-        # build_wall(size=Vector3(2, 1, 2), position=Vector3(3, (floor_height - 0.5), 3)),
+        build_ramp(starting_point=Vector3(-3, 0.5, -2), end_point=Vector3(-3, (floor_height + 0.5) / 2, 2)),
 
-        build_ramp(starting_point=Vector3(-3, 0.5, -2), end_point=Vector3(-3, (floor_height+0.5) / 2, 2)),
+
+        build_block(size=Vector3(2, 1, 2), position=Vector3(3, (floor_height - 0.5), 3)),
+        #
+        build_ramp(end_point=Vector3(-3, 5, 3), starting_point=Vector3(3, 4, 3)),
 
     ]
 
@@ -218,7 +237,7 @@ def server_map():
 
 
 def server_game_object(name, client):
-    return Object(name=name, size=Vector3(1, 1, 1)).add_component(
+    return Object(name=name, size=Vector3(1, 1.8, 1)).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0), restitution=0.1),
@@ -230,7 +249,7 @@ def server_game_object(name, client):
 
 
 def client_game_object(player_id, server_pos, server_vel):
-    return Object(name=player_id, position=server_pos).add_component(
+    return Object(name=player_id, position=server_pos, size=Vector3(1, 1.8, 1)).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel),
@@ -244,7 +263,7 @@ def main_game_object(ip="127.0.0.1"):
     from bereshit import Camera
     from bereshit.addons.essentials import PlayerController as pas
     cam = Object(position=Vector3(0, 1.8, 0)).add_component(Camera(shading="material preview"))
-    player = Object(size=Vector3(1, 1, 1), children=[cam], name="player").add_component(
+    player = Object(size=Vector3(1, 1.8, 1), children=[cam], name="player").add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, restitution=0.1),

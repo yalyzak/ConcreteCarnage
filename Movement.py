@@ -1,3 +1,5 @@
+import time
+
 import mouse
 import keyboard
 from collections import deque
@@ -36,10 +38,11 @@ class Recorder:
 class Controller:
     def __init__(self, speed=5, sensitivity=0.1):
         self.force_amount = speed
-        self.force_amount = 10
-        self.jump_speed = 50
+        self.force_amount = 40
+        self.jump_speed = 30
         self.isGrounded = False
         self.ground_normal = Vector3(0,1,0)
+        self.left_ground_time = time.perf_counter()
         self.max_velocity = 9.8
         self.sensitivity = sensitivity
         self.max_speed = 5
@@ -69,6 +72,7 @@ class Controller:
             self.isGrounded = True
             self.ground_normal = collision.normal
 
+
     def OnCollisionEnter(self, collision):
         if self.isGrounded:
             return
@@ -79,10 +83,13 @@ class Controller:
     def OnCollisionExit(self, collision):
         if collision.other.parent.get_component("Ground"):
             self.isGrounded = False
+            self.left_ground_time = time.perf_counter()
 
 
     def keyboard_controller(self, keys, dt):
-
+        if not self.isGrounded and time.perf_counter() - self.left_ground_time > 0.5:
+            for i in range(len(keys)):
+                keys[i] = False
 
         if keys[0]:
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1)).normalized()
@@ -91,8 +98,6 @@ class Controller:
             n = self.ground_normal
             forward = forward - n * forward.dot(n)
             forward = forward.normalized()
-            if n != Vector3(0,1,0):
-                print(n)
             horizontal = Vector3(self.rb.velocity.x, 0, self.rb.velocity.z)
 
             # add acceleration
