@@ -1,0 +1,2 @@
+class Ground:
+    pass

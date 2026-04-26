@@ -1,0 +1,6 @@
+mouse
+keyboard
+bereshit
+pip install transformers
+pip install torch
+pip install google-genai
