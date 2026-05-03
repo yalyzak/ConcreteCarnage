@@ -67,23 +67,23 @@ class Controller:
         """Attach controller to rigidbody for physics."""
         self.rb = other.Rigidbody
 
-    def OnCollisionStay(self, other):
+    def OnCollisionStay(self, Collision):
         """Handle continuous collision with ground."""
         if self.isGrounded:
             return
-        if other.parent.get_component("Ground"):
+        if Collision.other.parent.get_component("Ground"):
             self.isGrounded = True
 
-    def OnCollisionEnter(self, other):
+    def OnCollisionEnter(self, Collision):
         """Handle entering ground collision."""
         if self.isGrounded:
             return
-        if other.parent.get_component("Ground"):
+        if Collision.other.parent.get_component("Ground"):
             self.isGrounded = True
 
-    def OnCollisionExit(self, other):
+    def OnCollisionExit(self, Collision):
         """Handle exiting ground collision."""
-        if other.parent.get_component("Ground"):
+        if Collision.other.parent.get_component("Ground"):
             self.isGrounded = False
 
     def keyboard_controller(self, keys, dt):

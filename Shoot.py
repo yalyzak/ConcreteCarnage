@@ -30,7 +30,7 @@ class Shoot:
                 self.parent.GameUI.update_shots(self.shots)
 
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
-            hits = Physics.RaycastAll(self.parent.position.to_np(), forward.to_np(), self.parent.World)
+            hits = Physics.RaycastAll(self.parent.position, forward, self.parent.World)
             for hit in hits:
                 if hit.point is not None and hit.collider != self.parent.Collider:
                     Player = hit.collider.parent.get_component("Player")
