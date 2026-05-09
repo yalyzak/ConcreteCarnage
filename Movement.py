@@ -162,12 +162,12 @@ class Controller:
                 0
             ) * dt
 
-        if keys[5]:
-            self.rb.velocity -= Vector3(
-                0,
-                self.jump_speed * 2,
-                0
-            ) * dt
+        # if keys[5]:
+        #     self.rb.velocity -= Vector3(
+        #         0,
+        #         self.jump_speed * 2,
+        #         0
+        #     ) * dt
 
         if keys[6]:
             self.parent.Shoot.onClick()

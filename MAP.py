@@ -1,3 +1,4 @@
+import copy
 import math
 from moveable import moveable
 from bereshit import Object, BoxCollider, Rigidbody, Vector3, MeshRander
@@ -33,7 +34,8 @@ def client_map():
     floor_height2 = 2
 
     ground_height = floor_height * 0.5
-    ground = build_block(size=Vector3(50, 1, 50), position=Vector3(0, -0.5, 0)).add_component(MeshRander(shape="box", texture="models/concreteFloorTexture.jpg", repeat_texture=True))
+    ground = build_block(size=Vector3(50, 1, 50), position=Vector3(0, -0.5, 0)).add_component(
+        MeshRander(shape="box", texture="models/concreteFloorTexture.jpg", repeat_texture=True))
     walls = [
         build_wall_client(size=Vector3(10, floor_height, 1), position=Vector3(0, ground_height, 25.5)),
         build_wall_client(size=Vector3(10, floor_height, 1), position=Vector3(0, ground_height, -25.5)),
@@ -123,7 +125,13 @@ def client_map():
         build_wall_client(size=Vector3(1, floor_height, 10), position=Vector3(4.5, ground_height, 0)),
     ]
 
-    Box = Object(position=Vector3(0,10,0), size=Vector3(2,2,2)).add_component(BoxCollider(), Rigidbody()).add_component(MeshRander(shape="box", texture="models/boxTexture.jpg", repeat_texture=True))
+    box = Object(position=Vector3(0, 10, 0), size=Vector3(2, 2, 2)).add_component(BoxCollider(), Rigidbody(
+        Freeze_Rotation=Vector3(1, 1, 1), mass=2)).add_component(
+        MeshRander(shape="box", texture="models/boxTexture.jpg", repeat_texture=True))
+    boxs = [copy.deepcopy(box),
+            copy.deepcopy(box)]
+    boxs[1].local_position += Vector3(0, 1.5, 0)
+    boxs[0].set_default()
     return (
             [ground] + walls
             + building_NW_f1
@@ -132,8 +140,8 @@ def client_map():
             + building_NE
             + building_SE
             + building_mid
-            + [Box]
-    )
+            + boxs
+            )
 
 
 def server_map():
@@ -232,59 +240,7 @@ def server_map():
         build_wall(size=Vector3(1, floor_height, 10), position=Vector3(4.5, ground_height, 0)),
     ]
 
-    # ── NE INNER BLOCK ────────────────────────────────────────────
-    # Sits in the north-east alley corridor, breaks sightlines
-    building_ne_inner = [
-        # North wall — solid
-        build_block(size=Vector3(8, floor_height, 1), position=Vector3(-9, ground_height, -6.5)),
-        # South wall — split with west-side entrance
-        build_block(size=Vector3(3, floor_height, 1), position=Vector3(-13.5, ground_height, -2.5)),
-        build_block(size=Vector3(3, floor_height, 1), position=Vector3(-8.5, ground_height, -2.5)),
-        # West wall — split with south-side entrance
-        build_block(size=Vector3(1, floor_height, 2), position=Vector3(-13.5, ground_height, -8)),
-        build_block(size=Vector3(1, floor_height, 1), position=Vector3(-13.5, ground_height, -4)),
-        # East wall — solid
-        build_block(size=Vector3(1, floor_height, 5), position=Vector3(-5.5, ground_height, -5)),
-    ]
 
-    # ── SW INNER BLOCK ────────────────────────────────────────────
-    # Sits in the south-west alley corridor, mirrors NE inner
-    building_sw_inner = [
-        # South wall — solid
-        build_block(size=Vector3(8, floor_height, 1), position=Vector3(9, ground_height, 6.5)),
-        # North wall — split with east-side entrance
-        build_block(size=Vector3(3, floor_height, 1), position=Vector3(13.5, ground_height, 2.5)),
-        build_block(size=Vector3(3, floor_height, 1), position=Vector3(8.5, ground_height, 2.5)),
-        # East wall — split with north-side entrance
-        build_block(size=Vector3(1, floor_height, 2), position=Vector3(13.5, ground_height, 8)),
-        build_block(size=Vector3(1, floor_height, 1), position=Vector3(13.5, ground_height, 4)),
-        # West wall — solid
-        build_block(size=Vector3(1, floor_height, 5), position=Vector3(5.5, ground_height, 5)),
-    ]
-
-    # ── MARKET SQUARE COVER ───────────────────────────────────────
-    # Low stalls and a pillar in the open centre area
-    market_cover = [
-        # Stall counters (crouch height — 1.2 tall)
-        build_block(size=Vector3(3, 1.2, 1), position=Vector3(-1, 0.6, -1)),
-        build_block(size=Vector3(1, 1.2, 3), position=Vector3(2, 0.6, 1)),
-        build_block(size=Vector3(3, 1.2, 1), position=Vector3(0, 0.6, 3)),
-        # Tall pillar — full body cover
-        build_block(size=Vector3(1, 2.5, 1), position=Vector3(0, 1.25, 0)),
-    ]
-
-    # ── ALLEY CLUTTER ─────────────────────────────────────────────
-    # Small debris blocks scattered through corridors for micro-cover
-    alley_clutter = [
-        build_block(size=Vector3(1, 1, 2), position=Vector3(3, 0.5, 13)),
-        build_block(size=Vector3(2, 1, 1), position=Vector3(-3, 0.5, 11)),
-        build_block(size=Vector3(1, 1, 1), position=Vector3(18, 0.5, 3)),
-        build_block(size=Vector3(2, 1, 1), position=Vector3(18, 0.5, -3)),
-        build_block(size=Vector3(1, 1, 2), position=Vector3(-3, 0.5, -11)),
-        build_block(size=Vector3(2, 1, 1), position=Vector3(3, 0.5, -13)),
-        build_block(size=Vector3(1, 1, 1), position=Vector3(-18, 0.5, 3)),
-        build_block(size=Vector3(1, 1, 2), position=Vector3(-18, 0.5, -4)),
-    ]
 
     return (
             [ground] + walls
@@ -294,17 +250,13 @@ def server_map():
             + building_NE
             + building_SE
             + building_mid
-        # + building_ne_inner
-        # + building_sw_inner
-        # + market_cover
-        # + alley_clutter
-    )
+            )
 
 
 def server_game_object(name, client):
-    return Object(name=name, size=Vector3(1, 1, 1)).add_component(
+    return Object(name=name, size=Vector3(1, 2, 1)).add_component(
         [
-            BoxCollider(size=Vector3(0,0.8,0)),
+            BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0), restitution=0.1),
             ServerController(),
             ClientHelper(client),
@@ -314,11 +266,12 @@ def server_game_object(name, client):
 
 
 def client_game_object(player_id, server_pos, server_vel):
-    return Object(name=player_id, position=server_pos).add_component(
+    return Object(name=player_id, position=server_pos, size=Vector3(1,2,1)).add_component(
         [
-            BoxCollider(size=Vector3(0,0.8,0)),
+            BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel),
-            GamePlayer()
+            GamePlayer(),
+            MeshRander(obj_path="models/player.glb"),
         ])
 
 
@@ -328,9 +281,9 @@ def main_game_object(ip="127.0.0.1"):
     from bereshit import Camera
     from bereshit.addons.essentials import PlayerController as pas
     cam = Object(position=Vector3(0, 1.8, 0)).add_component(Camera(shading="material preview"))
-    player = Object(size=Vector3(1, 1, 1), children=[cam], name="player").add_component(
+    player = Object(size=Vector3(1, 2, 1), children=[cam], name="player").add_component(
         [
-            BoxCollider(size=Vector3(0,0.8,0)),
+            BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, restitution=0.1),
             # Camera(shading="material preview"),
             PlayerController(),
