@@ -31,7 +31,7 @@ class ClientHelper:
     def Update(self, dt):
         """Check for client timeout and remove inactive players."""
         # remove the player if they haven't been heard from in a while
-        if time.perf_counter() - self.last_seen() > 5:
+        if time.perf_counter() - self.last_seen() > 60:
             print("logging out ", self.parent.name, time.perf_counter() - self.last_seen())
             # use the client method in case extra cleanup is added later
             # needs to use despawned for clean up
