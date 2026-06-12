@@ -845,7 +845,7 @@ class PlayUI(AbstractUI):
         if not chat_filter.is_message_clean(message):
             message = chat_filter.censor(message)
         self.client.send_chat(message)
-        self.add_chat_message_ui(message)
+        self.add_chat_message_ui(self.client.name + ": "+ message)
 
 
     def add_chat_message_ui(self, text):
@@ -877,13 +877,13 @@ class PlayUI(AbstractUI):
         self.client.receive_tcp()
         if self.client.chat_queue:
             msg = self.client.chat_queue.popleft()
-            self.send_chat_message(msg)
+            self.add_chat_message_ui(msg)
 
     def load_chat_from_log(self):
         if hasattr(self, "chat_messages"):
             self.chat_messages.text = "\n".join(self.chat_log)
         while self.client.chat_queue:
-            self.add_chat_message(self.client.chat_queue.popleft())
+            self.add_chat_message_ui(self.client.chat_queue.popleft())
 
 
 class GameUI(AbstractUI):

@@ -10,7 +10,7 @@ import select
 import ssl
 from collections import deque
 
-from bereshit import Vector3, Object
+from bereshit import Vector3, Object, Quaternion
 from MAP import client_game_object
 
 from protocol import PacketType, PacketFormat, TICK, SESSION_TIMEOUT, SIGNATURE_SIZE, SIGNATURE_FORMAT
@@ -353,7 +353,9 @@ class Client:
             return
 
         server_pos = Vector3(px, py, pz)
+        server_quat = Quaternion(rx, ry, rz, rw)
         server_vel = Vector3(vx, vy, vz)
+
         if id == self.id:
             game_pos = self.parent.position
             game_vel = self.parent.Rigidbody.velocity
@@ -362,6 +364,14 @@ class Client:
             player = self.players.search(id)
             if player:
                 player.position = server_pos
+                forward = server_quat.rotate(Vector3(0, 0, 1))
+                forward.y = 0
+
+                if forward.magnitude() > 0.001:
+                    player.quaternion = Quaternion.look_rotation(
+                        forward.normalized(),
+                        Vector3(0, 1, 0)
+                    )
                 player.Rigidbody.velocity = server_vel
             else:  # tobe removed
                 if len(self.players.children) < self.__max_players:

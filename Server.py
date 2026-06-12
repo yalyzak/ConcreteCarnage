@@ -184,7 +184,7 @@ class Tcp:
         with self.clients_lock:
             cid = self.next_id
             self.next_id += 1
-            client = Client(cid, username, conn)
+            client = Client(cid, username, conn, self.udp)
             client.start_new_session()
             self.clients[cid] = client
 
@@ -227,15 +227,15 @@ class Tcp:
                         client.game_object.Player.respawn()
                         client.room.Camera.add_child(client.game_object)
                         conn.send(b"respawned")
-                        client.room.broadcast_udp(b'', self.udp, PacketType.RESPAWN)
+                        client.room.broadcast_udp(b'', self.udp, PacketType.RESPAWN, id=client.id)
                     else:
                         conn.send(b"FAILED")
 
                 elif cmd[0] == "despawn":
                     if client.room:
+                        client.room.broadcast_udp(b'', self.udp, PacketType.DESPAWN, id=client.id)
                         client.game_object.destroy()
                         conn.send(b"despawned")
-                        client.room.broadcast_udp(b'', self.udp, PacketType.DESPAWN)
                     else:
                         conn.send(b"FAILED")
 
@@ -506,7 +506,7 @@ class Server:
 
 
 class Client:
-    def __init__(self, id, username, tcp_addr):
+    def __init__(self, id, username, tcp_addr, udp):
         """Initialize client session with ID, name, and TCP connection."""
         self.__id = id
         self.__token = None
@@ -517,7 +517,7 @@ class Client:
         self.room = None
         self.udp_addr = None
         self.tcp_addr = tcp_addr
-        self.game_object = server_game_object(username, self)
+        self.game_object = server_game_object(username, self, udp)
         self.last_seen = time.perf_counter()
         self.ServerController = self.game_object.ServerController
 
@@ -604,6 +604,7 @@ class Client:
             if not Room.chat_filter.is_message_clean(msg):
                 msg = Room.chat_filter.censor(msg)
             msg = "CHAT " + self.username + ": " + msg
+            print(msg)
             self.room.broadcast_tcp(msg.encode(), sender=sender)
         except Exception as e:
             print("Failed to send update message from server", e)

@@ -253,14 +253,14 @@ def server_map():
             )
 
 
-def server_game_object(name, client):
+def server_game_object(name, client, udp):
     return Object(name=name, size=Vector3(1, 2, 1)).add_component(
         [
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), useGravity=True, velocity=Vector3(0, 0, 0), restitution=0.1),
             ServerController(),
-            ClientHelper(client),
-            Shoot(False),
+            ClientHelper(client, udp),
+            Shoot(False, Vector3(0,0.8,0)),
             ServerPlayer()
         ])
 

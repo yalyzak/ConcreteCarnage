@@ -6,7 +6,7 @@ from bereshit.render import Text,Box
 
 import copy
 class Shoot:
-    def __init__(self, ui):
+    def __init__(self, ui, shoot_beta=Vector3()):
         """Initialize weapon with cooldown and damage values."""
         self.CoolDown = 0.2   # seconds between shots
         self.timer = 0.0      # time passed since last shot
@@ -16,6 +16,7 @@ class Shoot:
         # self.gimos = Object(position=Vector3(1000,1000,1000),size=Vector3(.1,.1,.1))
         self.Damage = 50
         self.ui = ui
+        self.shoot_beta = shoot_beta
 
     def onClick(self):
         """Handle weapon fire event with damage and cooldown."""
@@ -30,7 +31,7 @@ class Shoot:
                 self.parent.GameUI.update_shots(self.shots)
 
             forward = self.parent.quaternion.rotate(Vector3(0, 0, 1))
-            hits = Physics.RaycastAll(self.parent.position, forward, self.parent.World)
+            hits = Physics.RaycastAll(self.parent.position + self.shoot_beta, forward, self.parent.World)
             for hit in hits:
                 if hit.point is not None and hit.collider != self.parent.Collider:
                     Player = hit.collider.parent.get_component("Player")

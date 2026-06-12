@@ -1,13 +1,14 @@
 from collections import deque
 import time
-
+from protocol import PacketType
 
 class ClientHelper:
     logout_deque = deque(maxlen=200)
 
-    def __init__(self, client):
+    def __init__(self, client, udp):
         """Initialize helper with client reference and message queues."""
         self._client = client
+        self.udp = udp
         self.messages_queue = deque(maxlen=20)
         self.chat_queue = deque(maxlen=10)
 
@@ -34,4 +35,5 @@ class ClientHelper:
             print("logging out ", self.parent.name, time.perf_counter() - self.last_seen())
             # use the client method in case extra cleanup is added later
             # needs to use despawned for clean up
+            self._client.room.broadcast_udp(b'', self.udp, PacketType.DESPAWN, id=self._client.id)
             self._client.log_out()
