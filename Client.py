@@ -371,7 +371,7 @@ class Client:
                     player.quaternion = Quaternion.look_rotation(
                         forward.normalized(),
                         Vector3(0, 1, 0)
-                    )
+                    ).conjugate()
                 player.Rigidbody.velocity = server_vel
             else:  # tobe removed
                 if len(self.players.children) < self.__max_players:
