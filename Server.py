@@ -252,6 +252,7 @@ class Tcp:
                         client.send_chat(msg, sender=client)
             except Exception as e:
                 print("TCP thread error for client", client.username, e)
+                client.room.remove_client(client)
                 break
 
         conn.close()
