@@ -252,6 +252,7 @@ class Tcp:
                         client.send_chat(msg, sender=client)
             except Exception as e:
                 print("TCP thread error for client", client.username, e)
+                client.room.remove_client(client)
                 break
 
         conn.close()
@@ -672,8 +673,8 @@ class RoomManager:
 
     @staticmethod
     def generate_password():
-        """Generate random 6-character password for room."""
-        return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(6))
+        """Generate random 6-character lowercase password for room."""
+        return ''.join(random.choice(string.ascii_lowercase + string.digits) for _ in range(6))
 
     def create_room(self, owner=None, pwd=None):
         """Create new game room and start physics simulation."""
