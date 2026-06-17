@@ -36,7 +36,7 @@ class Player:
         """Reset player position and health to initial state."""
         self.parent.position = Vector3(random.randint(0, 20), 1, random.randint(0, 20))
         self.parent.quaternion *= Quaternion()
-        self.parent.size = Vector3(1,1,1)
+        self.parent.size = Vector3(1,2,1)
         self._HP = self._MaxHp
 
     def despawn(self):

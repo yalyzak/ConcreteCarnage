@@ -271,7 +271,7 @@ def client_game_object(player_id, server_pos, server_vel):
             BoxCollider(),
             Rigidbody(Freeze_Rotation=Vector3(1, 1, 1), velocity=server_vel),
             GamePlayer(),
-            MeshRander(obj_path="models/player.glb"),
+            MeshRander(obj_path="models/player.glb", size=Vector3(2,2,2)),
         ])
 
 
